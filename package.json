@@ -2,9 +2,14 @@
   "name": "nexus-serviceflow",
   "private": true,
   "version": "1.0.0",
-  "description": "NEXUS ServiceFlow — multi-tenant field service management SaaS by NEXUS by DIL",
-  "workspaces": ["server", "web"],
-  "engines": { "node": ">=20" },
+  "description": "NEXUS ServiceFlow \u2014 multi-tenant field service management SaaS by NEXUS by DIL",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "dev": "npm run dev -w server & npm run dev -w web",
     "build": "npm run build -w web && npm run build -w server",
