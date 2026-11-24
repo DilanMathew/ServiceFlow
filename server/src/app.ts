@@ -81,7 +81,9 @@ export function createApp() {
   const publicLimiter = rateLimit({ windowMs: 60_000, limit: config.NODE_ENV === 'test' ? 10_000 : 30, standardHeaders: 'draft-7', legacyHeaders: false,
     message: { error: { code: 'RATE_LIMITED', message: 'Too many requests' } } });
 
-  app.use('/api/auth', authLimiter, authRouter);
+  // Strict brute-force limits only on credential endpoints; session refresh and /me use the normal API limit.
+  const SENSITIVE = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/mfa/verify', '/accept-invite', '/portal/register', '/verify-email', '/resend-verification', '/change-password', '/mfa/disable']);
+  app.use('/api/auth', (req, res, next) => (SENSITIVE.has(req.path) ? authLimiter : apiLimiter)(req, res, next), authRouter);
   app.use('/api/public', publicLimiter, publicRouter);
   app.use('/api/portal', apiLimiter, authenticate, subscriptionGuard, portalRouter);
   app.use('/api/platform', apiLimiter, authenticate, platformRouter);
