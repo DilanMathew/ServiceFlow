@@ -1,0 +1,10 @@
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/serviceflow_test';
+process.env.JWT_SECRET = 'test-secret-test-secret-test-secret-0123456789';
+process.env.ENCRYPTION_KEY = '1'.repeat(64);
+process.env.APP_URL = 'http://localhost:5173';
+process.env.STORAGE_LOCAL_DIR = './.test-uploads';
+process.env.RUN_WORKER = 'false';
+process.env.AI_PROVIDER = 'rules';
+process.env.BILLING_PROVIDER = 'test';
+process.env.MAPS_PROVIDER = 'none';
