@@ -2,7 +2,7 @@
 
 ServiceFlow deploys as **one web service**, a **PostgreSQL** database and an **S3-compatible bucket**. The repository's `railway.json` already configures the build and health check:
 
-- **Build:** Railpack runs `npm ci --include=dev && npm run build`.
+- **Build:** Railpack runs `npm install --include=dev --no-audit --no-fund && npm run build`.
 - **Start:** `npm start`. On boot this applies migrations, ensures reference data and the Super Admin, optionally seeds the demo, starts the worker, then listens on `PORT`.
 - **Health check:** `GET /api/health`. `GET /api/health/ready` also checks the database.
 
