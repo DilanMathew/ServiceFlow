@@ -3,6 +3,7 @@ import { registerHandler } from './queue.js';
 import { sendEmail, simpleHtml } from '../integrations/email.js';
 import { sendSms, sendWhatsApp } from '../integrations/messaging.js';
 import { getIntegration, markIntegrationHealth } from '../integrations/registry.js';
+import { sendPush } from '../integrations/push.js';
 
 export function registerJobHandlers() {
   registerHandler('send_system_email', async (job) => {
@@ -45,6 +46,34 @@ export function registerJobHandlers() {
       await systemDb.query(`UPDATE notification_logs SET status = 'failed', last_error = $2 WHERE id = $1`, [log.id, msg.slice(0, 500)]);
       if (log.channel !== 'email') await markIntegrationHealth(tenantId, log.channel, false, msg);
       throw err; // queue retries with backoff
+    }
+  });
+
+  // Web push for one in-app notification to every device of its user. Dead endpoints are pruned;
+  // transient failures retry (only devices that have not yet succeeded are retried).
+  registerHandler('deliver_push', async (job) => {
+    const tenantId = job.tenant_id!;
+    const n = await systemDb.maybeOne(`SELECT id, user_id, event, title, body, link, read_at FROM notifications WHERE id = $1 AND tenant_id = $2`, [job.payload.notificationId, tenantId]);
+    if (!n || n.read_at) return;
+    const done: string[] = job.payload.done ?? [];
+    const subs = await systemDb.many(`SELECT id, endpoint, p256dh, auth, failure_count FROM push_subscriptions WHERE tenant_id = $1 AND user_id = $2`, [tenantId, n.user_id]);
+    let transient = 0;
+    for (const sub of subs.filter((x) => !done.includes(x.id))) {
+      const r = await sendPush(sub, { title: n.title, body: n.body, link: n.link, tag: `${n.event}:${n.id}` });
+      if (r.ok) {
+        done.push(sub.id);
+        await systemDb.query(`UPDATE push_subscriptions SET failure_count = 0, last_success_at = now() WHERE id = $1`, [sub.id]);
+      } else if (r.gone || sub.failure_count >= 9) {
+        await systemDb.query(`DELETE FROM push_subscriptions WHERE id = $1`, [sub.id]);
+      } else {
+        transient++;
+        await systemDb.query(`UPDATE push_subscriptions SET failure_count = failure_count + 1 WHERE id = $1`, [sub.id]);
+      }
+    }
+    if (transient) {
+      job.payload.done = done;
+      await systemDb.query(`UPDATE background_jobs SET payload = $2 WHERE id = $1`, [job.id, job.payload]);
+      throw new Error(`push failed for ${transient} device(s)`);
     }
   });
 }

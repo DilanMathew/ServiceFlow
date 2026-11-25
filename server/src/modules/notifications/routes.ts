@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { requirePermission } from '../../auth/middleware.js';
 import { ah, listQuery, paged, parse, Where } from '../../lib/http.js';
 import { audit } from '../../lib/audit.js';
-import { notFound, unprocessable } from '../../lib/errors.js';
+import { badRequest, notFound, unprocessable } from '../../lib/errors.js';
 import { tx } from '../common.js';
 import { enqueue } from '../../jobs/queue.js';
 import { NOTIFICATION_EVENTS, renderTemplate } from './templates.js';
+import { notifyStaff } from './service.js';
+import { systemDb } from '../../db/pool.js';
+import { ensureVapidKeys, isAllowedPushEndpoint } from '../../integrations/push.js';
 
 export const notificationsRouter = Router();
 
@@ -22,6 +25,44 @@ notificationsRouter.post('/inbox/read', ah(async (req, res) => {
 }));
 
 // Delivery logs
+// ── Web push devices for the current user ─────────────────────────────
+const pushSubSchema = z.object({
+  endpoint: z.string().url().max(1000),
+  keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }),
+});
+
+notificationsRouter.get('/push', ah(async (req, res) => {
+  const rows = await tx(req, (db) => db.many(`SELECT id, user_agent, created_at, last_success_at FROM push_subscriptions WHERE user_id = $1 ORDER BY created_at DESC`, [req.auth!.userId]));
+  res.json({ data: { publicKey: (await ensureVapidKeys()).publicKey, devices: rows } });
+}));
+
+notificationsRouter.post('/push/subscribe', ah(async (req, res) => {
+  const b = parse(pushSubSchema, req.body);
+  if (!isAllowedPushEndpoint(b.endpoint)) throw badRequest('Unsupported push endpoint');
+  // An endpoint belongs to one browser profile: if it was registered by another account (possibly in
+  // another business), move it here. Done as system because RLS hides other tenants' rows.
+  await systemDb.query(`DELETE FROM push_subscriptions WHERE endpoint = $1 AND NOT (tenant_id = $2 AND user_id = $3)`, [b.endpoint, req.auth!.tenantId, req.auth!.userId]);
+  const row = await tx(req, async (db) => {
+    const count = await db.one(`SELECT count(*)::int n FROM push_subscriptions WHERE user_id = $1`, [req.auth!.userId]);
+    if (count.n >= 10) await db.query(`DELETE FROM push_subscriptions WHERE id = (SELECT id FROM push_subscriptions WHERE user_id = $1 ORDER BY COALESCE(last_success_at, created_at) LIMIT 1)`, [req.auth!.userId]);
+    return db.one(`INSERT INTO push_subscriptions (tenant_id, user_id, endpoint, p256dh, auth, user_agent) VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent, failure_count = 0
+      RETURNING id`, [db.tenantId, req.auth!.userId, b.endpoint, b.keys.p256dh, b.keys.auth, String(req.headers['user-agent'] ?? '').slice(0, 200)]);
+  });
+  res.status(201).json({ data: { id: row.id } });
+}));
+
+notificationsRouter.post('/push/unsubscribe', ah(async (req, res) => {
+  const b = parse(z.object({ endpoint: z.string().max(1000) }), req.body);
+  await tx(req, (db) => db.query(`DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, [b.endpoint, req.auth!.userId]));
+  res.json({ data: { ok: true } });
+}));
+
+notificationsRouter.post('/push/test', ah(async (req, res) => {
+  await tx(req, (db) => notifyStaff(db, req.auth!.userId, 'push.test', { title: 'Notifications are on', body: 'You will be alerted here when jobs are assigned or changed.', link: null }));
+  res.json({ data: { ok: true } });
+}));
+
 notificationsRouter.get('/logs', requirePermission('communications.read'), ah(async (req, res) => {
   const q = parse(listQuery.extend({ status: z.string().optional(), channel: z.string().optional(), event: z.string().optional() }), req.query);
   const w = new Where();

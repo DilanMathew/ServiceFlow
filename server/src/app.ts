@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import { captureError } from './lib/monitoring.js';
+import { idempotency } from './lib/idempotency.js';
 import { config, isProd } from './config.js';
 import { logger } from './logger.js';
 import { pool } from './db/pool.js';
@@ -104,7 +105,7 @@ export function createApp() {
   app.use('/api/public', publicLimiter, publicRouter);
   app.use('/api/portal', apiLimiter, authenticate, subscriptionGuard, portalRouter);
   app.use('/api/platform', apiLimiter, authenticate, platformRouter);
-  app.use('/api/app', apiLimiter, authenticate, requireStaff, subscriptionGuard, tenantRouter);
+  app.use('/api/app', apiLimiter, authenticate, requireStaff, subscriptionGuard, idempotency, tenantRouter);
   app.use('/api', (_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Endpoint not found' } }));
 
   // Serve the built SPA in production (single Railway service)

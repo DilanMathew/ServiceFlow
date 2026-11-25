@@ -174,8 +174,9 @@ workOrdersRouter.patch('/:id', requirePermission('work_orders.update'), ah(async
 
 workOrdersRouter.post('/:id/status', requirePermission('work_orders.status', 'work_orders.execute', 'work_orders.cancel'), ah(async (req, res) => {
   const b = parse(z.object({ status: z.enum(STATUSES as [WoStatus, ...WoStatus[]]), note: z.string().max(2000).nullish(), reason: z.string().max(2000).nullish(),
-    version: z.number().int().optional() }), req.body);
-  const out = await tx(req, (db) => transition(db, req, req.params.id, b.status, { note: b.note, holdReason: b.reason, cancellationReason: b.reason, expectedVersion: b.version }));
+    version: z.number().int().optional(), occurredAt: z.string().datetime({ offset: true }).nullish() }), req.body);
+  const out = await tx(req, (db) => transition(db, req, req.params.id, b.status,
+    { note: b.note, holdReason: b.reason, cancellationReason: b.reason, expectedVersion: b.version, occurredAt: b.occurredAt }));
   res.json({ data: out });
 }));
 

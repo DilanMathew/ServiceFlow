@@ -2,7 +2,7 @@ import { pool, systemDb, withTenant } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { createVisitWorkOrder } from '../modules/amc/routes.js';
 import { recomputeInvoice } from '../modules/invoices/service.js';
-import { notify, staffWithPermission } from '../modules/notifications/service.js';
+import { notify, staffWithPermission, notifyStaff } from '../modules/notifications/service.js';
 import { runSubscriptionLifecycle } from '../modules/subscriptions/billing.js';
 import { fmtDateTime } from '../modules/common.js';
 import { config } from '../config.js';
@@ -68,14 +68,15 @@ export const TASKS: Task[] = [
       GROUP BY i.id HAVING COALESCE(sum(st.quantity),0) <= i.min_stock`);
     if (!low.length) return;
     const users = await staffWithPermission(db, 'inventory.manage');
-    for (const u of users) await db.query(`INSERT INTO notifications (tenant_id, user_id, event, title, body, link) VALUES ($1,$2,'inventory.low_stock',$3,$4,'/app/inventory?lowStock=1')`,
-      [tid, u, `${low.length} item(s) low on stock`, low.slice(0, 5).map((x) => x.name).join(', ')]);
+    for (const u of users) await notifyStaff(db, u, 'inventory.low_stock',
+      { title: `${low.length} item(s) low on stock`, body: low.slice(0, 5).map((x) => x.name).join(', '), link: '/app/inventory?lowStock=1' });
   })) },
   { name: 'subscriptions', everyMin: 60, run: runSubscriptionLifecycle },
   { name: 'cleanup', everyMin: 24 * 60, run: async () => {
     await systemDb.query(`DELETE FROM sessions WHERE (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days') OR expires_at < now() - interval '30 days'`);
     await systemDb.query(`DELETE FROM auth_tokens WHERE expires_at < now() - interval '7 days'`);
     await systemDb.query(`DELETE FROM background_jobs WHERE status = 'succeeded' AND completed_at < now() - interval '14 days'`);
+    await systemDb.query(`DELETE FROM idempotent_requests WHERE created_at < now() - interval '7 days'`);
   } },
 ];
 

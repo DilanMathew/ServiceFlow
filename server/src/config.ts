@@ -54,6 +54,10 @@ const schema = z.object({
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
   RELEASE: z.string().optional(),
+  // Web push (VAPID). Optional: keys are generated and stored encrypted on first boot if unset.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/).optional(),
   SEED_DEMO: bool.default(false),
   PLATFORM_ADMIN_EMAIL: z.string().email().optional(),
   PLATFORM_ADMIN_PASSWORD: z.string().min(12).optional(),

@@ -6,6 +6,7 @@ import { systemDb, withSystem, withTenant } from '../../db/pool.js';
 import { config } from '../../config.js';
 import { hmacSha256Hex, safeEqual } from '../../lib/crypto.js';
 import { storage } from '../../integrations/storage.js';
+import { ensureVapidKeys } from '../../integrations/push.js';
 import { testGatewaySecret, testProvider } from '../../integrations/payments.js';
 import { createServiceRequest } from '../requests/routes.js';
 import { decideQuotation, quotationDetail, quotationPdf } from '../quotations/routes.js';
@@ -19,15 +20,17 @@ import { markSubscriptionInvoicePaid, markSubscriptionInvoiceFailed } from '../s
 export const publicRouter = Router();
 
 /** Runtime settings the SPA needs before login. Only public values: never secrets. */
-publicRouter.get('/client-config', (_req, res) => {
+publicRouter.get('/client-config', ah(async (_req, res) => {
+  const vapid = await ensureVapidKeys().catch(() => null);
   res.setHeader('Cache-Control', 'public, max-age=300');
   res.json({ data: {
     environment: config.SENTRY_ENVIRONMENT ?? config.NODE_ENV,
     release: config.RELEASE ?? null,
     sentryDsn: config.SENTRY_DSN_WEB ?? config.SENTRY_DSN ?? null,
     sentryTracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE,
+    vapidPublicKey: vapid?.publicKey ?? null,
   } });
-});
+}));
 
 publicRouter.get('/plans', ah(async (_req, res) => {
   res.json({ data: await systemDb.many(`SELECT code, name, description, currency, monthly_price, annual_price, trial_days, max_users, max_technicians, max_storage_mb, max_branches,

@@ -78,7 +78,9 @@ async function jobVars(db: Db, woId: string) {
     links: { feedback: `${config.APP_URL}/portal` } } };
 }
 
-export interface TransitionOpts { note?: string | null; holdReason?: string | null; cancellationReason?: string | null; expectedVersion?: number; system?: boolean }
+export interface TransitionOpts { note?: string | null; holdReason?: string | null; cancellationReason?: string | null; expectedVersion?: number; system?: boolean;
+  /** When the change really happened (offline replay). Clamped to [last change, now] and at most 72h back. */
+  occurredAt?: string | null }
 
 export async function transition(db: Db, req: Request | null, id: string, to: WoStatus, o: TransitionOpts = {}) {
   const wo = await lockWo(db, id);
@@ -106,11 +108,17 @@ export async function transition(db: Db, req: Request | null, id: string, to: Wo
     if (!report?.work_performed && !o.note) throw unprocessable('Add the work performed (service report) before completing the job');
   }
 
+  let at: Date | null = null;
+  if (o.occurredAt) {
+    const last = await db.maybeOne(`SELECT max(changed_at) AS t FROM work_order_status_history WHERE work_order_id = $1`, [id]);
+    const floor = Math.max(Date.now() - 72 * 3600_000, last?.t ? new Date(last.t).getTime() : 0);
+    at = new Date(Math.min(Date.now(), Math.max(floor, new Date(o.occurredAt).getTime())));
+  }
   const sets: string[] = ['status = $2', 'version = version + 1'];
   const vals: unknown[] = [id, to];
   const push = (sql: string, v: unknown) => { vals.push(v); sets.push(sql.replace('?', `$${vals.length}`)); };
-  if (to === 'in_progress' && !wo.actual_start) sets.push('actual_start = now()');
-  if (to === 'completed') { sets.push('actual_end = now()'); push('completed_by = ?', req?.auth?.userId ?? null); }
+  if (to === 'in_progress' && !wo.actual_start) push('actual_start = COALESCE(?::timestamptz, now())', at);
+  if (to === 'completed') { push('actual_end = COALESCE(?::timestamptz, now())', at); push('completed_by = ?', req?.auth?.userId ?? null); }
   if (to === 'in_progress' && from === 'completed') sets.push('actual_end = NULL');
   if (to === 'on_hold') push('hold_reason = ?', o.holdReason ?? o.note);
   if (to === 'cancelled' || to === 'rejected') push('cancellation_reason = ?', o.cancellationReason ?? o.note);
@@ -124,8 +132,8 @@ export async function transition(db: Db, req: Request | null, id: string, to: Wo
         time_window = CASE WHEN $2 = 'completed' THEN tstzrange(lower(time_window), GREATEST(lower(time_window), now()) + interval '1 second') ELSE time_window END
       WHERE work_order_id = $1 AND is_current`, [id, to]);
   }
-  await db.query(`INSERT INTO work_order_status_history (tenant_id, work_order_id, from_status, to_status, note, changed_by) VALUES ($1,$2,$3,$4,$5,$6)`,
-    [db.tenantId, id, from, to, o.note ?? o.holdReason ?? o.cancellationReason ?? null, req?.auth?.userId ?? null]);
+  await db.query(`INSERT INTO work_order_status_history (tenant_id, work_order_id, from_status, to_status, note, changed_by, changed_at) VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz, now()))`,
+    [db.tenantId, id, from, to, o.note ?? o.holdReason ?? o.cancellationReason ?? null, req?.auth?.userId ?? null, at]);
   await audit(db, req, { action: 'work_order.status_changed', entityType: 'work_order', entityId: id, before: { status: from }, after: { status: to, note: o.note } });
 
   if (to === 'completed') await onCompleted(db, updated);

@@ -10,6 +10,7 @@ import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 import { ensurePlatformAdmin } from './modules/platform/bootstrap.js';
 import { initMonitoring, captureError, flushMonitoring } from './lib/monitoring.js';
 import { storage } from './integrations/storage.js';
+import { ensureVapidKeys } from './integrations/push.js';
 
 initMonitoring();
 
@@ -25,6 +26,7 @@ async function main() {
   // Storage self-check: surfaces bad bucket credentials at boot instead of on the first upload.
   try { await storage.health(); logger.info({ driver: config.STORAGE_DRIVER }, 'storage ok'); }
   catch (err) { logger.error({ err, driver: config.STORAGE_DRIVER }, 'storage check failed: uploads will not work until this is fixed'); captureError(err, { source: 'storage_check' }); }
+  try { await ensureVapidKeys(); } catch (err) { logger.error({ err }, 'web push keys unavailable'); }
   registerJobHandlers();
   if (config.RUN_WORKER) { startWorker(); startScheduler(); }
 

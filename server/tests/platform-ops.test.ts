@@ -16,8 +16,9 @@ describe('operations endpoints', () => {
   it('client-config exposes only public values', async () => {
     const r = await api().get('/api/public/client-config');
     expect(r.status).toBe(200);
-    expect(Object.keys(r.body.data).sort()).toEqual(['environment', 'release', 'sentryDsn', 'sentryTracesSampleRate']);
+    expect(Object.keys(r.body.data).sort()).toEqual(['environment', 'release', 'sentryDsn', 'sentryTracesSampleRate', 'vapidPublicKey']);
     expect(r.body.data.sentryDsn).toBeNull();
-    expect(JSON.stringify(r.body)).not.toMatch(/secret|password|key/i);
+    expect(r.body.data.vapidPublicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+    expect(JSON.stringify(r.body)).not.toMatch(/secret|password|private/i);
   });
 });

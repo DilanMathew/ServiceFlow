@@ -27,10 +27,7 @@ export async function notify(db: Db, n: NotifyInput) {
   const vars = { ...n.vars, business: { name: tenant.name, phone: tenant.phone, email: tenant.email, ...(n.vars.business as object ?? {}) } };
 
   if (n.staffUserIds?.length && n.inApp) {
-    for (const uid of [...new Set(n.staffUserIds)]) {
-      await db.query(`INSERT INTO notifications (tenant_id, user_id, event, title, body, link) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [db.tenantId, uid, n.event, n.inApp.title, n.inApp.body ?? null, n.inApp.link ?? null]);
-    }
+    for (const uid of [...new Set(n.staffUserIds)]) await notifyStaff(db, uid, n.event, n.inApp);
   }
 
   let recipient = n.recipient ?? null;
@@ -59,6 +56,18 @@ export async function notify(db: Db, n: NotifyInput) {
         n.dedupeKey ? `${n.dedupeKey}:${channel}` : null]);
     if (log) await enqueue(db, 'deliver_notification', { logId: log.id, whatsappTemplate: tpl.whatsapp_template_name }, { maxAttempts: 5 });
   }
+}
+
+/**
+ * In-app inbox entry for one staff user, plus a queued web push to each of their subscribed devices.
+ * Push is fire-and-forget through the job queue, so it never blocks or rolls back the caller.
+ */
+export async function notifyStaff(db: Db, userId: string, event: string, m: { title: string; body?: string | null; link?: string | null }) {
+  const row = await db.one(`INSERT INTO notifications (tenant_id, user_id, event, title, body, link) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    [db.tenantId, userId, event, m.title, m.body ?? null, m.link ?? null]);
+  const hasDevice = await db.maybeOne(`SELECT 1 FROM push_subscriptions WHERE user_id = $1 LIMIT 1`, [userId]);
+  if (hasDevice) await enqueue(db, 'deliver_push', { notificationId: row.id }, { maxAttempts: 4 });
+  return row.id as string;
 }
 
 /** Staff users holding any of the given permissions (for routing in-app alerts). */
