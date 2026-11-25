@@ -1,9 +1,28 @@
-import { format as dfFormat, formatDistanceToNow } from 'date-fns';
+import { format as dfFormat, formatDistanceToNow, type Locale } from 'date-fns';
 
 /** Tenant-aware formatting; configured once after /auth/me loads. */
-let currency = 'INR', locale = 'en-IN', timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let currency = 'INR', tenantLocale = 'en-IN', locale = 'en-IN', timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let uiLang = 'en';
+let dfLocale: Locale | undefined;
+/** Display locale = UI language + the business's region (e.g. hi + en-IN → hi-IN, so numbers/dates read naturally). */
+function recompute() {
+  const [tl, region] = tenantLocale.split('-');
+  locale = uiLang === tl ? tenantLocale : region ? `${uiLang}-${region}` : uiLang;
+  try { new Intl.NumberFormat(locale); } catch { locale = tenantLocale; }
+}
 export function configureFormat(o: { currency?: string; locale?: string; timezone?: string }) {
-  if (o.currency) currency = o.currency; if (o.locale) locale = o.locale; if (o.timezone) timezone = o.timezone;
+  if (o.currency) currency = o.currency; if (o.locale) tenantLocale = o.locale; if (o.timezone) timezone = o.timezone;
+  recompute();
+}
+const DF_LOCALES: Record<string, () => Promise<Locale>> = {
+  hi: () => import('date-fns/locale/hi').then((m) => m.hi), de: () => import('date-fns/locale/de').then((m) => m.de),
+  fr: () => import('date-fns/locale/fr').then((m) => m.fr), es: () => import('date-fns/locale/es').then((m) => m.es),
+};
+/** Called by i18n when the UI language changes. */
+export async function setDateLocale(lang: string) {
+  uiLang = lang;
+  dfLocale = DF_LOCALES[lang] ? await DF_LOCALES[lang]() : undefined;
+  recompute();
 }
 export const tz = () => timezone;
 export const appCurrency = () => currency;
@@ -32,8 +51,10 @@ export function time(v?: string | Date | null) {
   if (!v) return '—';
   return new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone: timezone }).format(new Date(v));
 }
-export const ago = (v?: string | Date | null) => (v ? formatDistanceToNow(new Date(v), { addSuffix: true }) : '—');
+export const ago = (v?: string | Date | null) => (v ? formatDistanceToNow(new Date(v), { addSuffix: true, locale: dfLocale }) : '—');
 export const ymd = (d: Date) => dfFormat(d, 'yyyy-MM-dd');
 /** Converts a <input type="datetime-local"> value to an ISO string with offset. */
 export const localToIso = (v: string) => (v ? new Date(v).toISOString() : null);
 export const isoToLocal = (v?: string | null) => (v ? dfFormat(new Date(v), "yyyy-MM-dd'T'HH:mm") : '');
+/** date-fns format in the UI language (month/day names). */
+export const dfmt = (d: Date, pattern: string) => dfFormat(d, pattern, { locale: dfLocale });

@@ -1,3 +1,5 @@
+import { t } from './i18n';
+import './serverMessages';
 /**
  * API client. The access token lives only in memory; the refresh token is an httpOnly,
  * SameSite=Strict cookie scoped to /api/auth. 401s trigger one silent refresh + retry.
@@ -57,7 +59,8 @@ async function toError(res: Response) {
   let body: any = null;
   try { body = await res.json(); } catch { /* not json */ }
   const e = body?.error ?? {};
-  return new ApiError(res.status, e.code ?? 'HTTP_' + res.status, e.message ?? (res.status >= 500 ? 'Something went wrong. Please try again.' : 'Request failed'), e.details);
+  // Known server messages are shown in the user's language (catalog keys listed in serverMessages.ts).
+  return new ApiError(res.status, e.code ?? 'HTTP_' + res.status, t(e.message ?? (res.status >= 500 ? 'Something went wrong. Please try again.' : 'Request failed')), e.details);
 }
 
 export const get = <T = any>(p: string) => api<T>(p);

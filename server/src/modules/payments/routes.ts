@@ -8,6 +8,7 @@ import { tx, tenantSettings } from '../common.js';
 import { recordPayment, refundPayment, settlePending } from './service.js';
 import { renderSheetPdf, pdfMoney } from '../../lib/pdf.js';
 import type { Db } from '../../db/pool.js';
+import { pdfT } from '../../lib/pdfI18n.js';
 
 export const paymentsRouter = Router();
 
@@ -80,12 +81,13 @@ export async function receiptPdf(db: Db, id: string) {
   if (p.status !== 'succeeded') throw badRequest('Receipts are available for successful payments only');
   const s = await tenantSettings(db);
   const m = (v: any) => pdfMoney(v, p.currency, s.locale);
-  return { number: p.receipt_number, pdf: await renderSheetPdf({ signatures: false, title: 'Payment Receipt', number: p.receipt_number, status: 'paid',
+  const L = pdfT(s.locale);
+  return { number: p.receipt_number, pdf: await renderSheetPdf({ signatures: false, locale: s.locale, title: L('Payment Receipt'), number: p.receipt_number, status: 'paid',
     seller: { name: s.legal_name || s.business_name, lines: [s.address_line1, [s.city, s.postal_code].filter(Boolean).join(' '), s.business_email], taxLabel: s.tax_registration_label, taxId: s.tax_registration_number },
-    sections: [{ heading: 'Received from', rows: [['Customer', p.company_name || p.full_name]] },
-      { heading: 'Payment', rows: [['Amount', m(p.amount)], ['Method', p.method.replace('_', ' ')], ['Reference', p.reference ?? p.provider_payment_id ?? '—'],
-        ['Date', new Intl.DateTimeFormat(s.locale, { dateStyle: 'medium', timeZone: s.timezone }).format(new Date(p.received_at))], ['Invoice', p.invoice_number],
-        ['Invoice total', m(p.total)], ['Balance after payment', m(p.balance_due)]] }] }) };
+    sections: [{ heading: L('Received from'), rows: [[L('Customer'), p.company_name || p.full_name]] },
+      { heading: L('Payment'), rows: [[L('Amount'), m(p.amount)], [L('Method'), p.method.replace('_', ' ')], [L('Reference'), p.reference ?? p.provider_payment_id ?? '—'],
+        [L('Date'), new Intl.DateTimeFormat(s.locale, { dateStyle: 'medium', timeZone: s.timezone }).format(new Date(p.received_at))], [L('Invoice'), p.invoice_number],
+        [L('Invoice total'), m(p.total)], [L('Balance after payment'), m(p.balance_due)]] }] }) };
 }
 
 paymentsRouter.get('/:id/receipt.pdf', requirePermission('payments.read'), ah(async (req, res) => {

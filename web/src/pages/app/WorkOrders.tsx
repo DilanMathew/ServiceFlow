@@ -11,10 +11,11 @@ import { cn, titleCase } from '@/lib/utils';
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Checkbox, DataTable, DescriptionList, Dialog, EmptyState, ErrorState, Field, Input, Menu, PageHeader, PageLoader, SearchInput, Select, StatusBadge, Tabs, Textarea, useConfirm } from '@/components/ui';
 import { toastError } from '@/components/form';
 import { BackLink, CustomerPicker, DocumentsPanel, Timeline, useSettingsLists, useTechnicians } from './shared';
+import { statusLabel, t } from '@/lib/i18n';
 
 const STATUSES = ['new', 'approved', 'scheduled', 'assigned', 'en_route', 'in_progress', 'on_hold', 'completed', 'invoiced', 'paid', 'cancelled', 'rejected'];
 const PRIORITY_TONE: Record<string, any> = { urgent: 'red', high: 'amber', normal: 'slate', low: 'slate' };
-export const PriorityBadge = ({ p }: { p: string }) => (p === 'normal' ? null : <Badge tone={PRIORITY_TONE[p]}>{titleCase(p)}</Badge>);
+export const PriorityBadge = ({ p }: { p: string }) => (p === 'normal' ? null : <Badge tone={PRIORITY_TONE[p]}>{statusLabel(p)}</Badge>);
 
 // ---------------------------------------------------------------- assignment dialog (with rule-based suggestions)
 export function AssignDialog({ wo, open, onOpenChange, onDone }: { wo: any; open: boolean; onOpenChange: (o: boolean) => void; onDone: () => void }) {
@@ -330,15 +331,15 @@ export function PartDialog({ part, setPart, onSave, hidePrice }: { part: any; se
   const [q, setQ] = useState('');
   const { data: items } = useQuery({ queryKey: ['inv-pick', q], queryFn: async () => (await get(`/app/inventory/items?q=${encodeURIComponent(q)}&pageSize=8`)).data as any[], enabled: !!part && feature('inventory') });
   return (
-    <Dialog open={!!part} onOpenChange={(o) => !o && setPart(null)} title="Record part used"
-      footer={<Button disabled={!part?.itemId && !part?.description} onClick={() => onSave({ itemId: part.itemId || null, description: part.description || undefined, quantity: Number(part.quantity), unitPrice: part.unitPrice === '' || part.unitPrice === undefined ? undefined : Number(part.unitPrice) })}>Save</Button>}>
+    <Dialog open={!!part} onOpenChange={(o) => !o && setPart(null)} title={t('Record part used')}
+      footer={<Button disabled={!part?.itemId && !part?.description} onClick={() => onSave({ itemId: part.itemId || null, description: part.description || undefined, quantity: Number(part.quantity), unitPrice: part.unitPrice === '' || part.unitPrice === undefined ? undefined : Number(part.unitPrice) })}>{t('Save')}</Button>}>
       {part && <div className="space-y-3">
-        {feature('inventory') && <Field label="From inventory" hint="Stock is deducted automatically"><Input placeholder="Search SKU or name…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {feature('inventory') && <Field label={t('From inventory')} hint={t('Stock is deducted automatically')}><Input placeholder={t('Search SKU or name…')} value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">{items?.map((i) => <button key={i.id} type="button" onClick={() => setPart({ ...part, itemId: i.id, description: i.name })}
             className={cn('flex w-full justify-between rounded-md border px-3 py-2 text-left text-sm', part.itemId === i.id ? 'border-brand-500 bg-brand-50' : 'border-slate-200')}><span>{i.sku} · {i.name}</span><span className="text-xs text-slate-500">{Number(i.on_hand)} {i.unit}</span></button>)}</div></Field>}
-        <Field label={feature('inventory') ? 'Or non-catalogue part' : 'Part description'}><Input value={part.itemId ? '' : part.description} disabled={!!part.itemId} onChange={(e) => setPart({ ...part, description: e.target.value })} /></Field>
-        <div className="grid grid-cols-2 gap-3"><Field label="Quantity"><Input type="number" min={0.001} step="any" value={part.quantity} onChange={(e) => setPart({ ...part, quantity: e.target.value })} /></Field>
-          {!hidePrice && <Field label="Unit price" hint="Blank = catalogue price"><Input type="number" min={0} value={part.unitPrice} onChange={(e) => setPart({ ...part, unitPrice: e.target.value })} /></Field>}</div>
+        <Field label={feature('inventory') ? t('Or non-catalogue part') : t('Part description')}><Input value={part.itemId ? '' : part.description} disabled={!!part.itemId} onChange={(e) => setPart({ ...part, description: e.target.value })} /></Field>
+        <div className="grid grid-cols-2 gap-3"><Field label={t('Quantity')}><Input type="number" min={0.001} step="any" value={part.quantity} onChange={(e) => setPart({ ...part, quantity: e.target.value })} /></Field>
+          {!hidePrice && <Field label={t('Unit price')} hint={t('Blank = catalogue price')}><Input type="number" min={0} value={part.unitPrice} onChange={(e) => setPart({ ...part, unitPrice: e.target.value })} /></Field>}</div>
       </div>}
     </Dialog>
   );
@@ -358,8 +359,8 @@ export function ReportEditor({ w, report, setReport, onSaved, compact, saveRepor
       const body = { reportedIssue: report.reported_issue || null, findings: report.findings || null, workPerformed: report.work_performed || null,
         recommendations: report.recommendations || null, followUpRequired: !!report.follow_up_required, followUpNotes: report.follow_up_notes || null, equipmentCondition: report.equipment_condition || null,
         technicianNotes: notes || null, aiGenerated: !!report.ai_generated };
-      if (saveReport) { if (!(await saveReport(body))) toast.success('Report saved'); }
-      else { await put(`/app/work-orders/${w.id}/report`, body); toast.success('Report saved'); }
+      if (saveReport) { if (!(await saveReport(body))) toast.success(t('Report saved')); }
+      else { await put(`/app/work-orders/${w.id}/report`, body); toast.success(t('Report saved')); }
       onSaved(); }
     catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -367,26 +368,26 @@ export function ReportEditor({ w, report, setReport, onSaved, compact, saveRepor
     setBusy(true);
     try { const r = await post(`/app/ai/service-report/${w.id}`, { notes }); setReport({ ...report, reported_issue: r.data.reportedIssue, findings: r.data.findings, work_performed: r.data.workPerformed,
       recommendations: r.data.recommendations, follow_up_required: r.data.followUpRequired, follow_up_notes: r.data.followUpNotes, ai_generated: true });
-      toast.success('Draft generated — review and edit before saving'); }
+      toast.success(t('Draft generated — review and edit before saving')); }
     catch (e) { toastError(e); } finally { setBusy(false); }
   };
   return (
-    <Card><CardHeader title="Service report" description={locked ? 'Locked — signed by the customer or job closed' : 'Shared with the customer once the job is complete'} actions={report.ai_generated && <Badge tone="violet">AI-assisted draft</Badge>} />
+    <Card><CardHeader title={t('Service report')} description={locked ? t('Locked — signed by the customer or job closed') : t('Shared with the customer once the job is complete')} actions={report.ai_generated && <Badge tone="violet">{t('AI-assisted draft')}</Badge>} />
       <CardBody className="space-y-4">
-        {!locked && feature('ai') && can('ai.use') && <div className="rounded-lg border border-violet-200 bg-violet-50 p-3"><Field label="Rough notes for AI" hint="Write quickly; AI turns them into a professional report you can edit.">
-          <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="found coil dirty, gas low, cleaned coil, topped up gas 1kg, cooling ok now, recommend service every 4 months" /></Field>
-          <Button size="sm" variant="outline" className="mt-2" loading={busy} disabled={notes.trim().length < 5} onClick={ai}><Sparkles />Draft report with AI</Button></div>}
+        {!locked && feature('ai') && can('ai.use') && <div className="rounded-lg border border-violet-200 bg-violet-50 p-3"><Field label={t('Rough notes for AI')} hint={t('Write quickly; AI turns them into a professional report you can edit.')}>
+          <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('found coil dirty, gas low, cleaned coil, topped up gas 1kg, cooling ok now, recommend service every 4 months')} /></Field>
+          <Button size="sm" variant="outline" className="mt-2" loading={busy} disabled={notes.trim().length < 5} onClick={ai}><Sparkles />{t('Draft report with AI')}</Button></div>}
         <div className={cn('grid gap-4', !compact && 'sm:grid-cols-2')}>
-          <Field label="Reported issue"><Textarea rows={2} {...f('reported_issue')} /></Field>
-          <Field label="Inspection findings"><Textarea rows={2} {...f('findings')} /></Field>
-          <Field label="Work performed" required><Textarea rows={3} {...f('work_performed')} /></Field>
-          <Field label="Recommendations"><Textarea rows={3} {...f('recommendations')} /></Field>
-          <Field label="Equipment condition"><Select {...f('equipment_condition')} placeholder="—" options={['good', 'fair', 'poor', 'critical'].map((c) => ({ value: c, label: titleCase(c) }))} /></Field>
-          <div className="space-y-2 pt-6"><Checkbox label="Follow-up visit required" disabled={locked} checked={!!report.follow_up_required} onChange={(e) => setReport({ ...report, follow_up_required: e.target.checked })} />
-            {report.follow_up_required && <Input placeholder="Follow-up details" {...f('follow_up_notes')} />}</div>
+          <Field label={t('Reported issue')}><Textarea rows={2} {...f('reported_issue')} /></Field>
+          <Field label={t('Inspection findings')}><Textarea rows={2} {...f('findings')} /></Field>
+          <Field label={t('Work performed')} required><Textarea rows={3} {...f('work_performed')} /></Field>
+          <Field label={t('Recommendations')}><Textarea rows={3} {...f('recommendations')} /></Field>
+          <Field label={t('Equipment condition')}><Select {...f('equipment_condition')} placeholder="—" options={['good', 'fair', 'poor', 'critical'].map((c) => ({ value: c, label: statusLabel(c) }))} /></Field>
+          <div className="space-y-2 pt-6"><Checkbox label={t('Follow-up visit required')} disabled={locked} checked={!!report.follow_up_required} onChange={(e) => setReport({ ...report, follow_up_required: e.target.checked })} />
+            {report.follow_up_required && <Input placeholder={t('Follow-up details')} {...f('follow_up_notes')} />}</div>
         </div>
-        {report.customer_approved_at && <Alert tone="green">Signed by {report.customer_signed_name} on {dateTime(report.customer_approved_at)}</Alert>}
-        {!locked && <div className="flex justify-end"><Button loading={busy} onClick={save}>Save report</Button></div>}
+        {report.customer_approved_at && <Alert tone="green">{t('Signed by {name} on {date}', { name: report.customer_signed_name, date: dateTime(report.customer_approved_at) })}</Alert>}
+        {!locked && <div className="flex justify-end"><Button loading={busy} onClick={save}>{t('Save report')}</Button></div>}
       </CardBody></Card>
   );
 }

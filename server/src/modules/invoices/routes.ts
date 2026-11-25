@@ -14,6 +14,7 @@ import { notify } from '../notifications/service.js';
 import { createPaymentLink } from '../payments/service.js';
 import { config } from '../../config.js';
 import type { Db } from '../../db/pool.js';
+import { pdfT } from '../../lib/pdfI18n.js';
 
 export const invoicesRouter = Router();
 const read = requirePermission('invoices.read');
@@ -200,14 +201,15 @@ export async function invoicePdf(db: Db, id: string) {
   const billTo = inv.status === 'draft' ? { name: inv.company_name || inv.customer_name, lines: [inv.customer_email, inv.customer_phone] }
     : { name: inv.bill_to.name, lines: [inv.bill_to.contact, inv.bill_to.address, inv.bill_to.email, inv.bill_to.phone, inv.bill_to.tax_id ? `Tax ID: ${inv.bill_to.tax_id}` : null] };
   const m = (v: any) => pdfMoney(v, inv.currency, s.locale);
+  const L = pdfT(s.locale);
   return { number: inv.number ?? 'DRAFT', pdf: await renderFinancialPdf({
-    title: 'Tax Invoice', number: inv.number ?? 'DRAFT', status: inv.status, currency: inv.currency, locale: s.locale, seller, buyer: billTo,
-    meta: [['Issue date', inv.issue_date ?? '—'], ['Due date', inv.due_date ?? '—'], ...(inv.work_order_number ? [['Job', inv.work_order_number] as [string, string]] : []),
-      ...(inv.place_of_supply ? [['Place of supply', inv.place_of_supply] as [string, string]] : [])],
+    title: L('Tax Invoice'), number: inv.number ?? L('DRAFT'), status: inv.status, currency: inv.currency, locale: s.locale, seller, buyer: billTo,
+    meta: [[L('Issue date'), inv.issue_date ?? '—'], [L('Due date'), inv.due_date ?? '—'], ...(inv.work_order_number ? [[L('Job'), inv.work_order_number] as [string, string]] : []),
+      ...(inv.place_of_supply ? [[L('Place of supply'), inv.place_of_supply] as [string, string]] : [])],
     lines: inv.items.map((i: any) => ({ description: i.description + (i.hsn_sac_code ? ` (HSN/SAC ${i.hsn_sac_code})` : ''), qty: i.quantity, unitPrice: i.unit_price, discount: i.discount_percent, taxRate: i.tax_rate, total: i.line_total })),
-    totals: [['Subtotal', m(inv.subtotal)], ...(Number(inv.discount_total) > 0 ? [['Discount', `- ${m(inv.discount_total)}`] as [string, string]] : []), ['Tax', m(inv.tax_total)], ['Total', m(inv.total), true],
-      ...(Number(inv.amount_paid) > 0 ? [['Paid', m(Number(inv.amount_paid) - Number(inv.amount_refunded))] as [string, string]] : []),
-      ...(Number(inv.amount_credited) > 0 ? [['Credited', m(inv.amount_credited)] as [string, string]] : []), ['Balance due', m(inv.balance_due), true]],
+    totals: [[L('Subtotal'), m(inv.subtotal)], ...(Number(inv.discount_total) > 0 ? [[L('Discount'), `- ${m(inv.discount_total)}`] as [string, string]] : []), [L('Tax'), m(inv.tax_total)], [L('Total'), m(inv.total), true],
+      ...(Number(inv.amount_paid) > 0 ? [[L('Paid'), m(Number(inv.amount_paid) - Number(inv.amount_refunded))] as [string, string]] : []),
+      ...(Number(inv.amount_credited) > 0 ? [[L('Credited'), m(inv.amount_credited)] as [string, string]] : []), [L('Balance due'), m(inv.balance_due), true]],
     taxBreakdown: inv.tax_breakdown, notes: inv.notes, footer: inv.footer ?? undefined, einvoice,
   }) };
 }

@@ -13,6 +13,7 @@ import { mapsLink } from '../../integrations/maps.js';
 import { storage } from '../../integrations/storage.js';
 import { sha256 } from '../../lib/crypto.js';
 import type { Db } from '../../db/pool.js';
+import { pdfT } from '../../lib/pdfI18n.js';
 
 export const workOrdersRouter = Router();
 const readAny = requirePermission('work_orders.read', 'work_orders.read_own');
@@ -369,27 +370,28 @@ async function sheetData(db: Db, req: Request, id: string, kind: 'job' | 'report
     const d = await db.maybeOne(`SELECT storage_key FROM documents WHERE id = $1`, [report.customer_signature_document_id]);
     if (d) { const chunks: Buffer[] = []; for await (const c of await storage.get(d.storage_key)) chunks.push(c as Buffer); signature = Buffer.concat(chunks); }
   }
+  const L = pdfT(s.locale);
   const dt = (v: any) => (v ? new Intl.DateTimeFormat(s.locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: s.timezone }).format(new Date(v)) : '—');
   const sections = [
-    { heading: 'Customer', rows: [['Name', wo.customer_name], ['Phone', wo.customer_phone ?? ''], ['Address', [wo.line1, wo.line2, wo.city, wo.postal_code].filter(Boolean).join(', ')],
-      ['Access notes', wo.access_notes ?? '']] as [string, string][] },
-    { heading: 'Job', rows: [['Job', `${wo.number} — ${wo.title}`], ['Service', wo.category_name ?? ''], ['Priority', wo.priority], ['Scheduled', dt(wo.scheduled_start)],
-      ['Technician', wo.technician_name ?? 'Unassigned'], ['Started', dt(wo.actual_start)], ['Completed', dt(wo.actual_end)]] as [string, string][] },
-    ...(wo.asset_name ? [{ heading: 'Equipment', rows: [['Equipment', wo.asset_name], ['Make / model', [wo.manufacturer, wo.model].filter(Boolean).join(' ')], ['Serial no.', wo.serial_number ?? '']] as [string, string][] }] : []),
-    { heading: 'Description', text: wo.description ?? '—' },
+    { heading: L('Customer'), rows: [[L('Name'), wo.customer_name], [L('Phone'), wo.customer_phone ?? ''], [L('Address'), [wo.line1, wo.line2, wo.city, wo.postal_code].filter(Boolean).join(', ')],
+      [L('Access notes'), wo.access_notes ?? '']] as [string, string][] },
+    { heading: L('Job'), rows: [[L('Job'), `${wo.number} — ${wo.title}`], [L('Service'), wo.category_name ?? ''], [L('Priority'), wo.priority], [L('Scheduled'), dt(wo.scheduled_start)],
+      [L('Technician'), wo.technician_name ?? L('Unassigned')], [L('Started'), dt(wo.actual_start)], [L('Completed'), dt(wo.actual_end)]] as [string, string][] },
+    ...(wo.asset_name ? [{ heading: L('Equipment'), rows: [[L('Equipment'), wo.asset_name], [L('Make / model'), [wo.manufacturer, wo.model].filter(Boolean).join(' ')], [L('Serial no.'), wo.serial_number ?? '']] as [string, string][] }] : []),
+    { heading: L('Description'), text: wo.description ?? '—' },
   ];
   if (kind === 'report' && report) {
     sections.push(
-      { heading: 'Reported issue', text: report.reported_issue ?? '—' }, { heading: 'Inspection findings', text: report.findings ?? '—' },
-      { heading: 'Work performed', text: report.work_performed ?? '—' }, { heading: 'Recommendations', text: report.recommendations ?? '—' },
-      { heading: 'Follow-up', rows: [['Required', report.follow_up_required ? 'Yes' : 'No'], ['Notes', report.follow_up_notes ?? ''], ['Equipment condition', report.equipment_condition ?? '']] as [string, string][] } as any);
+      { heading: L('Reported issue'), text: report.reported_issue ?? '—' }, { heading: L('Inspection findings'), text: report.findings ?? '—' },
+      { heading: L('Work performed'), text: report.work_performed ?? '—' }, { heading: L('Recommendations'), text: report.recommendations ?? '—' },
+      { heading: L('Follow-up'), rows: [[L('Required'), report.follow_up_required ? L('Yes') : L('No')], [L('Notes'), report.follow_up_notes ?? ''], [L('Equipment condition'), report.equipment_condition ?? '']] as [string, string][] } as any);
   }
-  if (parts.length) sections.push({ heading: 'Parts used', table: { head: prices ? ['Part', 'Qty', 'Unit price'] : ['Part', 'Qty'],
+  if (parts.length) sections.push({ heading: L('Parts used'), table: { head: (prices ? ['Part', 'Qty', 'Unit price'] : ['Part', 'Qty']).map(L),
     rows: parts.map((p) => (prices ? [p.description, String(Number(p.quantity)), pdfMoney(p.unit_price, s.currency, s.locale)] : [p.description, String(Number(p.quantity))])) } } as any);
-  if (labour.length) sections.push({ heading: 'Labour', table: { head: ['Work', 'Hours'], rows: labour.map((l) => [l.description, String(Number(l.hours))]) } } as any);
-  if (kind === 'job') sections.push({ heading: 'Technician notes', text: '\n\n\n\n' });
+  if (labour.length) sections.push({ heading: L('Labour'), table: { head: ['Work', 'Hours'].map(L), rows: labour.map((l) => [l.description, String(Number(l.hours))]) } } as any);
+  if (kind === 'job') sections.push({ heading: L('Technician notes'), text: '\n\n\n\n' });
   return {
-    title: kind === 'job' ? 'Job Sheet' : 'Service Report', number: wo.number, status: wo.status,
+    title: kind === 'job' ? L('Job Sheet') : L('Service Report'), locale: s.locale, number: wo.number, status: wo.status,
     seller: { name: s.business_name, lines: [s.address_line1, [s.city, s.postal_code].filter(Boolean).join(' '), s.business_phone, s.business_email], taxLabel: s.tax_registration_label, taxId: s.tax_registration_number },
     sections, signature, signedBy: report?.customer_signed_name, signedAt: report?.customer_approved_at ? dt(report.customer_approved_at) : null,
   };

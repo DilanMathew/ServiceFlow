@@ -7,12 +7,13 @@ import { date, money } from '@/lib/format';
 import { Logo } from '@/components/layout/Logo';
 import { Alert, Button, Card, CardBody, Checkbox, ErrorState, Field, Input, PageLoader, Select, StatusBadge, Textarea } from '@/components/ui';
 import { toastError } from '@/components/form';
+import { currentLang, statusLabel, t, tn } from '@/lib/i18n';
 
 function Shell({ children, business }: { children: ReactNode; business?: string }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-        {business ? <span className="font-semibold text-navy-900">{business}</span> : <Logo compact />}<span className="text-xs text-slate-400">Powered by NEXUS ServiceFlow</span></div></header>
+        {business ? <span className="font-semibold text-navy-900">{business}</span> : <Logo compact />}<span className="text-xs text-slate-400">{t('Powered by NEXUS ServiceFlow')}</span></div></header>
       <main className="mx-auto max-w-3xl px-4 py-8">{children}</main>
     </div>
   );
@@ -21,7 +22,7 @@ function Shell({ children, business }: { children: ReactNode; business?: string 
 function LineTable({ items, currency }: { items: any[]; currency: string }) {
   return (
     <div className="overflow-x-auto"><table className="min-w-full text-sm">
-      <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500"><th className="py-2">Item</th><th className="py-2 text-right">Qty</th><th className="py-2 text-right">Price</th><th className="py-2 text-right">Tax</th><th className="py-2 text-right">Amount</th></tr></thead>
+      <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500"><th className="py-2">{t('Item')}</th><th className="py-2 text-right">{t('Qty')}</th><th className="py-2 text-right">{t('Price')}</th><th className="py-2 text-right">{t('Tax')}</th><th className="py-2 text-right">{t('Amount')}</th></tr></thead>
       <tbody>{items.map((i, k) => <tr key={k} className="border-b border-slate-100"><td className="py-2.5 pr-3">{i.description}{Number(i.discount_percent) > 0 && <span className="text-xs text-emerald-700"> (−{Number(i.discount_percent)}%)</span>}</td>
         <td className="py-2.5 text-right tabular">{Number(i.quantity)}</td><td className="py-2.5 text-right tabular">{money(i.unit_price, currency)}</td><td className="py-2.5 text-right">{Number(i.tax_rate)}%</td><td className="py-2.5 text-right tabular">{money(i.line_total, currency)}</td></tr>)}</tbody>
     </table></div>
@@ -32,22 +33,22 @@ function Totals({ d }: { d: any }) {
   return (
     <div className="ml-auto mt-4 w-full max-w-xs space-y-1.5 text-sm">
       {rows.map(([k, v]) => <div key={k} className="flex justify-between text-slate-600"><span>{k}</span><span className="tabular">{money(v, d.currency)}</span></div>)}
-      {(d.tax_breakdown ?? []).map((t: any) => <div key={t.name + t.rate} className="flex justify-between pl-3 text-xs text-slate-400"><span>{t.name} {t.rate}%</span><span className="tabular">{money(t.amount, d.currency)}</span></div>)}
-      <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-navy-900"><span>Total</span><span className="tabular">{money(d.total, d.currency)}</span></div>
+      {(d.tax_breakdown ?? []).map((tb: any) => <div key={tb.name + tb.rate} className="flex justify-between pl-3 text-xs text-slate-400"><span>{tb.name} {tb.rate}%</span><span className="tabular">{money(tb.amount, d.currency)}</span></div>)}
+      <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-navy-900"><span>{t('Total')}</span><span className="tabular">{money(d.total, d.currency)}</span></div>
     </div>
   );
 }
 
 function RequestForm() {
   const { slug } = useParams();
-  const { data: t, isLoading, error } = useQuery({ queryKey: ['public-tenant', slug], queryFn: async () => (await api(`/public/tenants/${slug}`)).data });
+  const { data: biz, isLoading, error } = useQuery({ queryKey: ['public-tenant', slug], queryFn: async () => (await api(`/public/tenants/${slug}`)).data });
   const [v, setV] = useState({ contactName: '', contactPhone: '', contactEmail: '', addressText: '', description: '', serviceCategoryId: '', preferredDate: '', preferredTimeSlot: 'any', consent: false, website: '' });
   const [files, setFiles] = useState<FileList | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (isLoading) return <PageLoader />;
   if (error) return <Shell><ErrorState error={error} /></Shell>;
-  if (!t.requestFormEnabled) return <Shell business={t.name}><Alert tone="amber">Online requests are not available. Please call {t.phone}.</Alert></Shell>;
+  if (!biz.requestFormEnabled) return <Shell business={biz.name}><Alert tone="amber">{t('Online requests are not available. Please call {phone}.', { phone: biz.phone })}</Alert></Shell>;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true);
     try {
@@ -59,24 +60,24 @@ function RequestForm() {
     } catch (err) { toastError(err); } finally { setBusy(false); }
   };
   return (
-    <Shell business={t.name}>
+    <Shell business={biz.name}>
       {done ? <Card><CardBody className="py-12 text-center"><CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" /><p className="mt-3 text-lg font-semibold text-navy-900">{done}</p>
-        <p className="mt-1 text-sm text-slate-500">We will contact you shortly{t.phone ? ` · ${t.phone}` : ''}.</p></CardBody></Card> : (
+        <p className="mt-1 text-sm text-slate-500">{t('We will contact you shortly.')}{biz.phone ? ` · ${biz.phone}` : ''}</p></CardBody></Card> : (
         <Card><CardBody>
-          <h1 className="text-xl font-semibold text-navy-900">Request a service</h1><p className="mt-1 text-sm text-slate-500">Tell us what you need and we'll get back to you.</p>
+          <h1 className="text-xl font-semibold text-navy-900">{t('Request a service')}</h1><p className="mt-1 text-sm text-slate-500">{t('Tell us what you need and we\'ll get back to you.')}</p>
           <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={submit}>
-            <Field label="Your name" required><Input required value={v.contactName} onChange={(e) => setV({ ...v, contactName: e.target.value })} /></Field>
-            <Field label="Phone" required><Input required type="tel" value={v.contactPhone} onChange={(e) => setV({ ...v, contactPhone: e.target.value })} /></Field>
-            <Field label="Email"><Input type="email" value={v.contactEmail} onChange={(e) => setV({ ...v, contactEmail: e.target.value })} /></Field>
-            <Field label="Service"><Select value={v.serviceCategoryId} onChange={(e) => setV({ ...v, serviceCategoryId: e.target.value })} placeholder="Not sure" options={t.categories.map((c: any) => ({ value: c.id, label: c.name }))} /></Field>
-            <Field label="Service address" required className="sm:col-span-2"><Input required value={v.addressText} onChange={(e) => setV({ ...v, addressText: e.target.value })} /></Field>
-            <Field label="Describe the problem" required className="sm:col-span-2"><Textarea required minLength={10} rows={4} value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} placeholder="e.g. My AC is leaking water and making noise" /></Field>
-            <Field label="Preferred date"><Input type="date" value={v.preferredDate} onChange={(e) => setV({ ...v, preferredDate: e.target.value })} /></Field>
-            <Field label="Preferred time"><Select value={v.preferredTimeSlot} onChange={(e) => setV({ ...v, preferredTimeSlot: e.target.value })} options={[{ value: 'any', label: 'Any time' }, { value: 'morning', label: 'Morning' }, { value: 'afternoon', label: 'Afternoon' }, { value: 'evening', label: 'Evening' }]} /></Field>
-            <Field label="Photos (optional, up to 5)" className="sm:col-span-2"><input type="file" accept="image/*" multiple capture="environment" onChange={(e) => setFiles(e.target.files)} className="text-sm" /></Field>
+            <Field label={t('Your name')} required><Input required value={v.contactName} onChange={(e) => setV({ ...v, contactName: e.target.value })} /></Field>
+            <Field label={t('Phone')} required><Input required type="tel" value={v.contactPhone} onChange={(e) => setV({ ...v, contactPhone: e.target.value })} /></Field>
+            <Field label={t('Email')}><Input type="email" value={v.contactEmail} onChange={(e) => setV({ ...v, contactEmail: e.target.value })} /></Field>
+            <Field label={t('Service')}><Select value={v.serviceCategoryId} onChange={(e) => setV({ ...v, serviceCategoryId: e.target.value })} placeholder={t('Not sure')} options={biz.categories.map((c: any) => ({ value: c.id, label: c.name }))} /></Field>
+            <Field label={t('Service address')} required className="sm:col-span-2"><Input required value={v.addressText} onChange={(e) => setV({ ...v, addressText: e.target.value })} /></Field>
+            <Field label={t('Describe the problem')} required className="sm:col-span-2"><Textarea required minLength={10} rows={4} value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} placeholder="e.g. My AC is leaking water and making noise" /></Field>
+            <Field label={t('Preferred date')}><Input type="date" value={v.preferredDate} onChange={(e) => setV({ ...v, preferredDate: e.target.value })} /></Field>
+            <Field label={t('Preferred time')}><Select value={v.preferredTimeSlot} onChange={(e) => setV({ ...v, preferredTimeSlot: e.target.value })} options={[{ value: 'any', label: t('Any time') }, { value: 'morning', label: t('Morning') }, { value: 'afternoon', label: t('Afternoon') }, { value: 'evening', label: t('Evening') }]} /></Field>
+            <Field label={t('Photos (optional, up to 5)')} className="sm:col-span-2"><input type="file" accept="image/*" multiple capture="environment" onChange={(e) => setFiles(e.target.files)} className="text-sm" /></Field>
             <input tabIndex={-1} autoComplete="off" className="hidden" aria-hidden value={v.website} onChange={(e) => setV({ ...v, website: e.target.value })} />
-            <Checkbox className="sm:col-span-2" checked={v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} label={`I agree that ${t.name} may contact me about this request and process my details for this purpose.`} />
-            <div className="sm:col-span-2"><Button type="submit" size="lg" loading={busy} disabled={!v.consent}>Submit request</Button></div>
+            <Checkbox className="sm:col-span-2" checked={v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} label={t('I agree that {business} may contact me about this request and process my details for this purpose.', { business: biz.name })} />
+            <div className="sm:col-span-2"><Button type="submit" size="lg" loading={busy} disabled={!v.consent}>{t('Submit request')}</Button></div>
           </form>
         </CardBody></Card>)}
     </Shell>
@@ -101,25 +102,25 @@ function QuotationPage() {
     <Shell business={q.business.name}>
       <Card><CardBody>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs uppercase tracking-wide text-slate-500">Quotation</p><h1 className="text-xl font-semibold text-navy-900">{q.number}{q.revision > 1 && ` · Rev ${q.revision}`}</h1>
-            <p className="text-sm text-slate-500">For {q.customer_name} · Valid until {date(q.valid_until)}</p></div>
-          <div className="flex items-center gap-2"><StatusBadge status={q.status} /><a href={`/api/public/quotations/${token}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><Download />PDF</Button></a></div>
+          <div><p className="text-xs uppercase tracking-wide text-slate-500">{t('Quotation')}</p><h1 className="text-xl font-semibold text-navy-900">{q.number}{q.revision > 1 && ` · Rev ${q.revision}`}</h1>
+            <p className="text-sm text-slate-500">{t('For {name}', { name: q.customer_name })} · {t('Valid until {date}', { date: date(q.valid_until) })}</p></div>
+          <div className="flex items-center gap-2"><StatusBadge status={q.status} /><a href={`/api/public/quotations/${token}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><Download />{t('PDF')}</Button></a></div>
         </div>
         {q.title && <p className="mt-4 font-medium">{q.title}</p>}
         <div className="mt-4"><LineTable items={q.items} currency={q.currency} /></div><Totals d={q} />
         {q.notes && <p className="mt-6 whitespace-pre-line text-sm text-slate-600">{q.notes}</p>}
-        {q.terms && <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600"><p className="font-semibold">Terms</p><p className="whitespace-pre-line">{q.terms}</p></div>}
+        {q.terms && <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600"><p className="font-semibold">{t('Terms')}</p><p className="whitespace-pre-line">{q.terms}</p></div>}
         {['sent', 'viewed'].includes(q.status) ? (
           <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2">
-            <div className="space-y-3"><p className="font-semibold text-navy-900">Approve this quotation</p>
-              <Field label="Your full name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-              <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} label="I accept this quotation and its terms" />
-              <Button disabled={name.trim().length < 2 || !agree} loading={busy} onClick={() => act('approve')}>Approve</Button></div>
-            <div className="space-y-3"><p className="font-semibold text-navy-900">Decline</p>
-              <Field label="Reason"><Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-              <Button variant="outline" disabled={reason.trim().length < 2} loading={busy} onClick={() => act('reject')}>Decline quotation</Button></div>
+            <div className="space-y-3"><p className="font-semibold text-navy-900">{t('Approve this quotation')}</p>
+              <Field label={t('Your full name')}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+              <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} label={t('I accept this quotation and its terms')} />
+              <Button disabled={name.trim().length < 2 || !agree} loading={busy} onClick={() => act('approve')}>{t('Approve')}</Button></div>
+            <div className="space-y-3"><p className="font-semibold text-navy-900">{t('Decline')}</p>
+              <Field label={t('Reason')}><Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+              <Button variant="outline" disabled={reason.trim().length < 2} loading={busy} onClick={() => act('reject')}>{t('Decline quotation')}</Button></div>
           </div>
-        ) : q.status === 'approved' ? <Alert tone="green" title="Approved">Approved by {q.approved_by_name} on {date(q.approved_at)}. {q.business.name} will be in touch.</Alert> : null}
+        ) : q.status === 'approved' ? <Alert tone="green" title={t('Approved')}>{t('Approved by {name} on {date}. {business} will be in touch.', { name: q.approved_by_name, date: date(q.approved_at), business: q.business.name })}</Alert> : null}
       </CardBody></Card>
     </Shell>
   );
@@ -135,28 +136,28 @@ function InvoicePage() {
   const pay = async () => { setBusy(true); try { const r = await post(`/public/invoices/${token}/pay`); window.location.href = r.data.checkoutUrl; } catch (e) { toastError(e); setBusy(false); } };
   return (
     <Shell business={i.seller?.name}>
-      {sp.get('payment') === 'success' && <div className="mb-4"><Alert tone="green" title="Payment submitted">Thank you. Your payment is confirmed once the payment provider notifies us — this page updates automatically.</Alert></div>}
-      {sp.get('payment') === 'failure' && <div className="mb-4"><Alert tone="red" title="Payment failed">Your payment did not go through. You can try again.</Alert></div>}
+      {sp.get('payment') === 'success' && <div className="mb-4"><Alert tone="green" title={t('Payment submitted')}>{t('Thank you. Your payment is confirmed once the payment provider notifies us — this page updates automatically.')}</Alert></div>}
+      {sp.get('payment') === 'failure' && <div className="mb-4"><Alert tone="red" title={t('Payment failed')}>{t('Your payment did not go through. You can try again.')}</Alert></div>}
       <Card><CardBody>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs uppercase tracking-wide text-slate-500">Tax invoice</p><h1 className="text-xl font-semibold text-navy-900">{i.number}</h1>
-            <p className="text-sm text-slate-500">Issued {date(i.issue_date)} · Due {date(i.due_date)}</p></div>
-          <div className="flex items-center gap-2"><StatusBadge status={i.status} /><a href={`/api/public/invoices/${token}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><Download />PDF</Button></a></div>
+          <div><p className="text-xs uppercase tracking-wide text-slate-500">{t('Tax invoice')}</p><h1 className="text-xl font-semibold text-navy-900">{i.number}</h1>
+            <p className="text-sm text-slate-500">{t('Issued {date}', { date: date(i.issue_date) })} · {t('Due {date}', { date: date(i.due_date) })}</p></div>
+          <div className="flex items-center gap-2"><StatusBadge status={i.status} /><a href={`/api/public/invoices/${token}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><Download />{t('PDF')}</Button></a></div>
         </div>
         <div className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-          <div><p className="text-xs font-semibold uppercase text-slate-500">From</p><p className="font-medium">{i.seller?.name}</p><p className="text-slate-500">{i.seller?.address}</p>{i.seller?.tax_id && <p className="text-slate-500">{i.seller.tax_label}: {i.seller.tax_id}</p>}</div>
-          <div><p className="text-xs font-semibold uppercase text-slate-500">Bill to</p><p className="font-medium">{i.bill_to?.name}</p><p className="text-slate-500">{i.bill_to?.address}</p></div>
+          <div><p className="text-xs font-semibold uppercase text-slate-500">{t('From')}</p><p className="font-medium">{i.seller?.name}</p><p className="text-slate-500">{i.seller?.address}</p>{i.seller?.tax_id && <p className="text-slate-500">{i.seller.tax_label}: {i.seller.tax_id}</p>}</div>
+          <div><p className="text-xs font-semibold uppercase text-slate-500">{t('Bill to')}</p><p className="font-medium">{i.bill_to?.name}</p><p className="text-slate-500">{i.bill_to?.address}</p></div>
         </div>
         <div className="mt-6"><LineTable items={i.items} currency={i.currency} /></div><Totals d={i} />
         <div className="ml-auto mt-2 w-full max-w-xs space-y-1 text-sm">
-          {Number(i.amount_paid) > 0 && <div className="flex justify-between text-emerald-700"><span>Paid</span><span className="tabular">{money(i.amount_paid, i.currency)}</span></div>}
-          <div className="flex justify-between font-semibold"><span>Balance due</span><span className="tabular">{money(i.balance_due, i.currency)}</span></div>
+          {Number(i.amount_paid) > 0 && <div className="flex justify-between text-emerald-700"><span>{t('Paid')}</span><span className="tabular">{money(i.amount_paid, i.currency)}</span></div>}
+          <div className="flex justify-between font-semibold"><span>{t('Balance due')}</span><span className="tabular">{money(i.balance_due, i.currency)}</span></div>
         </div>
         {Number(i.balance_due) > 0 && ['issued', 'partially_paid', 'overdue'].includes(i.status) && (
           <div className="mt-6 border-t border-slate-100 pt-5">{i.onlinePayment ? <div className="flex flex-wrap items-center gap-3">
-            <Button size="lg" loading={busy} onClick={pay}>Pay {money(i.balance_due, i.currency)} online</Button>
-            <span className="flex items-center gap-1 text-xs text-slate-500"><ShieldCheck className="h-4 w-4" />Secure checkout{i.onlinePayment.mode === 'test' && ' (sandbox — no real money is charged)'}</span></div>
-            : <p className="text-sm text-slate-600">Please pay using the bank details on the invoice.</p>}</div>)}
+            <Button size="lg" loading={busy} onClick={pay}>{t('Pay {amount} online', { amount: money(i.balance_due, i.currency) })}</Button>
+            <span className="flex items-center gap-1 text-xs text-slate-500"><ShieldCheck className="h-4 w-4" />{t('Secure checkout')}{i.onlinePayment.mode === 'test' && ` (${t('sandbox — no real money is charged')})`}</span></div>
+            : <p className="text-sm text-slate-600">{t('Please pay using the bank details on the invoice.')}</p>}</div>)}
         {i.notes && <p className="mt-6 whitespace-pre-line text-sm text-slate-600">{i.notes}</p>}
       </CardBody></Card>
     </Shell>
@@ -178,10 +179,10 @@ function SandboxCheckout({ billing }: { billing?: boolean }) {
   return (
     <Shell>
       <Card className="mx-auto max-w-md"><CardBody className="text-center">
-        <Alert tone="amber" title="Sandbox checkout">This is a test payment gateway. No real money is charged.</Alert>
-        {!billing && <><p className="mt-6 text-sm text-slate-500">{data.business} · Invoice {data.number}</p><p className="mt-1 text-3xl font-semibold text-navy-900">{money(data.amount, data.currency)}</p></>}
-        {billing && <p className="mt-6 text-sm text-slate-500">NEXUS ServiceFlow subscription</p>}
-        <div className="mt-6 grid grid-cols-2 gap-3"><Button variant="outline" loading={busy} onClick={() => go('failure')}>Simulate failure</Button><Button loading={busy} onClick={() => go('success')}>Pay (simulate success)</Button></div>
+        <Alert tone="amber" title={t('Sandbox checkout')}>{t('This is a test payment gateway. No real money is charged.')}</Alert>
+        {!billing && <><p className="mt-6 text-sm text-slate-500">{data.business} · {t('Invoice {number}', { number: data.number })}</p><p className="mt-1 text-3xl font-semibold text-navy-900">{money(data.amount, data.currency)}</p></>}
+        {billing && <p className="mt-6 text-sm text-slate-500">{t('NEXUS ServiceFlow subscription')}</p>}
+        <div className="mt-6 grid grid-cols-2 gap-3"><Button variant="outline" loading={busy} onClick={() => go('failure')}>{t('Simulate failure')}</Button><Button loading={busy} onClick={() => go('success')}>{t('Pay (simulate success)')}</Button></div>
       </CardBody></Card>
     </Shell>
   );
@@ -197,9 +198,9 @@ function AssetPage() {
       <Card><CardBody>
         <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-600"><Wrench className="h-5 w-5" /></div>
           <div><p className="text-xs text-slate-500">{a.number}</p><h1 className="text-lg font-semibold text-navy-900">{a.name}</h1><p className="text-sm text-slate-500">{[a.manufacturer, a.model].filter(Boolean).join(' ')}</p></div></div>
-        <div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Warranty</p><p className="font-medium">{a.warrantyActive === null ? 'Unknown' : a.warrantyActive ? 'Active' : 'Expired'}</p></div>
-          <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Last service</p><p className="font-medium">{date(a.lastService)}</p></div></div>
-        <div className="mt-6 flex flex-wrap gap-2"><Link to={`/r/${a.business.slug}`}><Button>Request service</Button></Link><Link to={`/app/assets/${a.assetId}`}><Button variant="outline">Open in ServiceFlow (staff)</Button></Link></div>
+        <div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{t('Warranty')}</p><p className="font-medium">{a.warrantyActive === null ? 'Unknown' : a.warrantyActive ? 'Active' : 'Expired'}</p></div>
+          <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{t('Last service')}</p><p className="font-medium">{date(a.lastService)}</p></div></div>
+        <div className="mt-6 flex flex-wrap gap-2"><Link to={`/r/${a.business.slug}`}><Button>{t('Request service')}</Button></Link><Link to={`/app/assets/${a.assetId}`}><Button variant="outline">{t('Open in ServiceFlow (staff)')}</Button></Link></div>
       </CardBody></Card>
     </Shell>
   );
@@ -209,6 +210,7 @@ function Legal({ kind }: { kind: 'privacy' | 'terms' }) {
   return (
     <Shell><Card><CardBody className="prose prose-sm max-w-none space-y-3 text-sm text-slate-700">
       <h1 className="text-xl font-semibold text-navy-900">{kind === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}</h1>
+      {currentLang() !== 'en' && <p className="text-xs text-slate-500">{t('This legal text is provided in English.')}</p>}
       {kind === 'privacy' ? <>
         <p>NEXUS ServiceFlow is provided by NEXUS by DIL. Each business using ServiceFlow is the controller of its customers' personal data; NEXUS processes that data on the business's behalf as a processor.</p>
         <p>We process account data (name, email, phone), business records entered by our customers, and technical logs needed to secure the service. We do not sell personal data. Data is encrypted in transit, secrets are encrypted at rest, and each business's data is isolated.</p>

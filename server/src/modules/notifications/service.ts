@@ -1,6 +1,7 @@
 import type { Db } from '../../db/pool.js';
 import { enqueue } from '../../jobs/queue.js';
 import { renderTemplate, type NotificationEvent } from './templates.js';
+import { TRANSLATED_DEFAULTS, langOf } from './templates.i18n.js';
 
 type Channel = 'email' | 'whatsapp' | 'sms';
 export interface NotifyInput {
@@ -23,7 +24,8 @@ const DEFAULT_PREFS: Record<Channel, boolean> = { email: true, whatsapp: true, s
  * never sends synchronously, so a failing provider can never roll back or block the business change.
  */
 export async function notify(db: Db, n: NotifyInput) {
-  const tenant = await db.one(`SELECT t.name, t.phone, t.email, s.notification_preferences FROM tenants t JOIN tenant_settings s ON s.tenant_id = t.id WHERE t.id = $1`, [db.tenantId]);
+  const tenant = await db.one(`SELECT t.name, t.phone, t.email, s.notification_preferences, s.locale FROM tenants t JOIN tenant_settings s ON s.tenant_id = t.id WHERE t.id = $1`, [db.tenantId]);
+  const lang = langOf(tenant.locale) as keyof typeof TRANSLATED_DEFAULTS;
   const vars = { ...n.vars, business: { name: tenant.name, phone: tenant.phone, email: tenant.email, ...(n.vars.business as object ?? {}) } };
 
   if (n.staffUserIds?.length && n.inApp) {
@@ -45,9 +47,12 @@ export async function notify(db: Db, n: NotifyInput) {
     const to = channel === 'email' ? recipient.email : recipient.phone;
     if (!to) continue;
     const tpl = await db.maybeOne(
-      `SELECT subject, body, whatsapp_template_name FROM notification_templates WHERE event = $1 AND channel = $2 AND is_active
+      `SELECT tenant_id, subject, body, whatsapp_template_name FROM notification_templates WHERE event = $1 AND channel = $2 AND is_active
         AND (tenant_id = $3 OR tenant_id IS NULL) ORDER BY tenant_id NULLS LAST LIMIT 1`, [n.event, channel, db.tenantId]);
     if (!tpl) continue;
+    // Platform default (not customised by this business) in the business's language, when available.
+    const tr = !tpl.tenant_id ? TRANSLATED_DEFAULTS[lang]?.[n.event] : undefined;
+    if (tr) { tpl.subject = tpl.subject ? tr.subject : tpl.subject; tpl.body = tr.body; }
     const log = await db.maybeOne(
       `INSERT INTO notification_logs (tenant_id, event, channel, recipient, customer_id, entity_type, entity_id, subject, body, dedupe_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (tenant_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING RETURNING id`,

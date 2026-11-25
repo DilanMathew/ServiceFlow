@@ -54,15 +54,26 @@ This page is an honest snapshot of what is built, what runs in test or mock mode
 
 Default plan prices (Starter, Growth, Business, Enterprise, in USD) are **placeholders**. They are seeded once, and the Super Admin should edit them before launch.
 
+## Added in the second build round
+
+| Item | What exists now | Verified by |
+|---|---|---|
+| Dependency security | multer 2, nodemailer 10, zod 4, React Router 7, Vite 8, Vitest 5, patched AWS SDK/Express. `npm audit`: 0 vulnerabilities | build, all tests, E2E |
+| Error monitoring | Sentry (server + browser), off unless `SENTRY_DSN` is set; no personal data sent | unit test, smoke test with a dummy DSN |
+| Storage health | Real S3 write/read/delete probe at boot and in `/api/health/ready` | test |
+| Push notifications | Web push (VAPID) for staff devices: job assigned/rescheduled, approvals, low stock, e-invoice problems | API tests, browser test of the service worker showing a push |
+| Offline technician mode | Installable PWA; jobs cached per user; accept/status/notes/parts/photos/signature/report queue offline and sync in order with idempotency keys; real start/finish times kept | `e2e/offline-technician.cjs`, API tests |
+| E-invoicing | India GST IRN (sandbox + GSP adapter, cancel, QR on PDF) and EU UBL (Peppol BIS 3.0, XRechnung 3.0, invoices + credit notes, Access Point adapter) | 13 API tests, XML well-formedness (`xmllint`) |
+| Translations | Hindi, German, French, Spanish for the technician app, customer portal, public invoice/quotation pages, sign-in, navigation and shared components (621 strings, checked by `npm run i18n:check -w web`); customer messages and PDFs in the business language (PDFs: de/fr/es) | catalog checker, tests, screenshots |
+| Session fix | A refresh token replayed within 60 s of rotation (page reloaded mid-refresh) no longer logs the user out | test |
+
 ## Known gaps and recommended next work
 
-1. **Error monitoring.** `SENTRY_DSN` is accepted in config but no SDK is wired in yet. Add `@sentry/node` and `@sentry/react`, or another APM.
-2. **Redis.** `REDIS_URL` is accepted but unused. The queue and rate limiting run on Postgres and in memory. With several web replicas, move the rate-limit store to Redis.
-3. **Offline technician mode.** The technician app needs connectivity. A service worker with an action queue would help in poor coverage areas.
-4. **Localisation.** The UI is English only. Currency, tax and date formats are already per tenant. String translation (for example Hindi, German, French) is not done.
-5. **Native push notifications** for technicians are not implemented. Today they get email, WhatsApp and SMS.
-6. **E-invoicing.** India IRN/e-way bill and EU e-invoicing formats (Peppol, XRechnung) are not integrated.
-7. **Payment gateways and messaging were verified only in test mode.** The live Razorpay, Stripe and Meta webhooks have not been exercised against real accounts. Do a live test transaction before launch.
-8. **Load and penetration testing** has not been performed.
-9. **Legal.** Terms, privacy policy, DPA and sub-processor list need legal review. **GDPR / DPDP compliance is not claimed.** The product provides tooling (export, erasure, consent, audit, encryption of secrets), but compliance depends on operations and contracts.
-10. **Backups.** Turn on Railway Postgres backups and run a restore drill. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+1. **Redis.** `REDIS_URL` is accepted but unused. With several web replicas, move the rate-limit store to Redis.
+2. **Translations of office screens.** Settings, reports, inventory, dispatch, invoices and the Super Admin console are still English. The system is in place: wrap strings in `t()` and run `npm run i18n:check -w web` to see what needs translating. Legal pages stay English until a lawyer approves translations. Hindi PDFs use English labels (the built-in PDF fonts cannot render Devanagari; embed a Devanagari font to change this).
+3. **E-invoicing — official validation and live providers.** The UBL output follows EN 16931 / Peppol / XRechnung rules but was not run through the official validators here (see [EINVOICING.md](EINVOICING.md) for the one-command check). The IRP sandbox is a simulation; the GSP and Peppol Access Point adapters are generic and must be verified against your chosen provider's sandbox. India e-way bills are not implemented.
+4. **Push on iPhone** works only after the app is added to the Home Screen (iOS 16.4+). Delivery to real push services could not be exercised from the build sandbox.
+5. **Payment gateways and messaging were verified only in test mode.** Do a live test transaction before launch.
+6. **Load and penetration testing** has not been performed.
+7. **Legal.** Terms, privacy policy, DPA and sub-processor list need legal review. **GDPR / DPDP compliance is not claimed.**
+8. **Backups.** Turn on Railway Postgres backups and run a restore drill. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).

@@ -5,9 +5,10 @@ import { api, lastRefreshWasOffline, post, refreshSession, setToken } from './ap
 import { lastProfile, rememberProfile, setOfflineUser, wipeOfflineData } from './offline/cache';
 import { flushOutbox, outboxState, refreshOutbox, startOutbox } from './offline/outbox';
 import { configureFormat } from './format';
+import { applyUserLanguage } from './i18n';
 
 export interface Me {
-  user: { id: string; email: string; full_name: string; phone: string | null; user_type: 'platform' | 'staff' | 'customer'; mfa_enabled: boolean; email_verified_at: string | null };
+  user: { id: string; email: string; full_name: string; phone: string | null; user_type: 'platform' | 'staff' | 'customer'; mfa_enabled: boolean; email_verified_at: string | null; locale?: string | null };
   tenant: { id: string; name: string; slug: string; country: string; status: string; is_demo: boolean } | null;
   settings: { currency: string; timezone: string; locale: string; inventory_enabled: boolean; onboarding_completed_at: string | null; onboarding_step: number; technician_can_see_prices: boolean } | null;
   entitlements: { planCode: string; planName: string; status: string; readOnly: boolean; features: Record<string, boolean>;
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function applyMe(m: Me) {
     setMe(m);
+    applyUserLanguage(m.user.locale, m.settings?.locale);
     setOfflineUser(m.user.id);
     if (m.settings) configureFormat({ currency: m.settings.currency, locale: m.settings.locale, timezone: m.settings.timezone });
   }

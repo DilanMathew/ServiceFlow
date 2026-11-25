@@ -8,7 +8,10 @@ NEXUS ServiceFlow is a multi-tenant field service management SaaS. It is built f
 - Service requests, work orders and dispatch
 - Technician and customer portals
 - Quotations, invoicing (GST/VAT), payments and inventory
-- AMC contracts and notifications
+- AMC contracts and notifications, including web push to technicians' phones
+- An installable technician app that keeps working offline and syncs when back online
+- E-invoicing: India GST IRN and EU Peppol BIS 3.0 / XRechnung
+- English, Hindi, German, French and Spanish for technicians, customers and sign-in
 - AI assistance and reports
 - Subscription billing, with a Super Admin console for the platform operator
 
@@ -19,6 +22,7 @@ NEXUS ServiceFlow is a multi-tenant field service management SaaS. It is built f
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Railway deployment, environment variables, going live with integrations |
 | [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) | Database and file backups, restore drills |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | How each role uses the product |
+| [docs/EINVOICING.md](docs/EINVOICING.md) | India GST IRN and EU Peppol/XRechnung setup and validation |
 | [docs/STATUS.md](docs/STATUS.md) | What is done, what runs in test mode, known gaps and next steps |
 | [.env.example](.env.example) | Every configuration variable, documented |
 
@@ -111,6 +115,8 @@ The platform Super Admin is created from `PLATFORM_ADMIN_EMAIL` and `PLATFORM_AD
 | `npm run seed` | Seed the demo tenant (skips it if it already exists) |
 | `npm test` | Backend test suite (Vitest) against a throwaway `serviceflow_test` database |
 | `npm run typecheck` | TypeScript checks for server and web |
+| `npm run i18n:check -w web` | Checks every translated string exists in the hi/de/fr/es catalogs |
+| `BASE_URL=http://localhost:4000 node e2e/offline-technician.cjs` | Offline technician journey: queue work without signal, sync on reconnect |
 | `BASE_URL=http://localhost:4000 node e2e/critical-journeys.cjs` | Playwright critical-journey test: dispatcher, then technician on mobile, then accountant, then customer |
 
 ### Tests

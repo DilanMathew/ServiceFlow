@@ -76,7 +76,7 @@ const call = async (token, path, body, method) => {
   await page.getByPlaceholder('Add a work note…').locator('xpath=..').getByRole('button', { name: 'Add', exact: true }).click();
   await page.getByText('You · waiting to sync').waitFor();
   await page.locator('input[type=file][accept="image/*"]').setInputFiles(require('node:path').join(__dirname, '../web/public/icons/icon-192.png'));
-  await page.getByText('1 photo(s) saved on this phone').waitFor();
+  await page.getByText('1 photo saved on this phone').waitFor();
   await page.getByText(/4 pending/).waitFor();
   step('accept, start, note and photo queued offline with optimistic updates');
 

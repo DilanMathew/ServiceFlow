@@ -11,6 +11,7 @@ import { renderFinancialPdf, pdfMoney } from '../../lib/pdf.js';
 import { notify } from '../notifications/service.js';
 import { config } from '../../config.js';
 import type { Db } from '../../db/pool.js';
+import { pdfT } from '../../lib/pdfI18n.js';
 
 export const quotationsRouter = Router();
 const read = requirePermission('quotations.read');
@@ -175,13 +176,14 @@ export async function quotationPdf(db: Db, id: string) {
   const s = await tenantSettings(db);
   const m = (v: any) => pdfMoney(v, q.currency, s.locale);
   const number = `${q.number}${q.revision > 1 ? `-R${q.revision}` : ''}`;
-  return { number, pdf: await renderFinancialPdf({ title: 'Quotation', number, status: q.status, currency: q.currency, locale: s.locale,
+  const L = pdfT(s.locale);
+  return { number, pdf: await renderFinancialPdf({ title: L('Quotation'), number, status: q.status, currency: q.currency, locale: s.locale,
     seller: { name: s.legal_name || s.business_name, lines: [s.address_line1, [s.city, s.state, s.postal_code].filter(Boolean).join(' '), s.business_email, s.business_phone],
       taxLabel: s.tax_registration_label, taxId: s.tax_registration_number },
     buyer: { name: q.company_name || q.customer_name, lines: [q.company_name ? q.customer_name : null, q.customer_email, q.customer_phone] },
-    meta: [['Date', q.issue_date], ['Valid until', q.valid_until], ...(q.work_order_number ? [['Job', q.work_order_number] as [string, string]] : [])],
+    meta: [[L('Date'), q.issue_date], [L('Valid until'), q.valid_until], ...(q.work_order_number ? [[L('Job'), q.work_order_number] as [string, string]] : [])],
     lines: q.items.map((i: any) => ({ description: i.description, qty: i.quantity, unitPrice: i.unit_price, discount: i.discount_percent, taxRate: i.tax_rate, total: i.line_total })),
-    totals: [['Subtotal', m(q.subtotal)], ...(Number(q.discount_total) > 0 ? [['Discount', `- ${m(q.discount_total)}`] as [string, string]] : []), ['Tax', m(q.tax_total)], ['Total', m(q.total), true]],
+    totals: [[L('Subtotal'), m(q.subtotal)], ...(Number(q.discount_total) > 0 ? [[L('Discount'), `- ${m(q.discount_total)}`] as [string, string]] : []), [L('Tax'), m(q.tax_total)], [L('Total'), m(q.total), true]],
     taxBreakdown: q.tax_breakdown, notes: q.notes, terms: q.terms }) };
 }
 

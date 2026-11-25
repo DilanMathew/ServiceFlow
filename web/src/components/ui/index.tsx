@@ -5,6 +5,7 @@ import * as DropdownPrimitive from '@radix-ui/react-dropdown-menu';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { AlertTriangle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Inbox, Loader2, Search, X } from 'lucide-react';
+import { statusLabel, t, useT } from '@/lib/i18n';
 import { cn, initials, titleCase } from '@/lib/utils';
 
 // ---------------------------------------------------------------- Button
@@ -110,11 +111,13 @@ const STATUS_TONE: Record<string, Tone> = {
   urgent: 'red', high: 'amber', normal: 'slate', low: 'slate', under_repair: 'amber', replaced: 'slate', decommissioned: 'slate', work_order_created: 'violet', missed: 'red',
   ok: 'green', error: 'red', unconfigured: 'slate', on_leave: 'amber', terminated: 'slate', reviewed: 'cyan', action_taken: 'green', dismissed: 'slate',
 };
-export const StatusBadge = ({ status, label }: { status?: string | null; label?: string }) =>
-  status ? <Badge tone={STATUS_TONE[status] ?? 'slate'}>{label ?? titleCase(status)}</Badge> : null;
+export function StatusBadge({ status, label }: { status?: string | null; label?: string }) {
+  useT(); // re-render on language change
+  return status ? <Badge tone={STATUS_TONE[status] ?? 'slate'}>{label ?? statusLabel(status)}</Badge> : null;
+}
 
 // ---------------------------------------------------------------- Feedback states
-export const Spinner = ({ className }: { className?: string }) => <Loader2 className={cn('h-5 w-5 animate-spin text-brand-600', className)} aria-label="Loading" />;
+export const Spinner = ({ className }: { className?: string }) => <Loader2 className={cn('h-5 w-5 animate-spin text-brand-600', className)} aria-label={t('Loading')} />;
 export const Skeleton = ({ className }: { className?: string }) => <div className={cn('animate-pulse rounded-md bg-slate-200/70', className)} />;
 export const PageLoader = () => <div className="flex h-64 items-center justify-center"><Spinner className="h-7 w-7" /></div>;
 
@@ -129,15 +132,16 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action }: {
   );
 }
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const msg = (error as Error)?.message ?? 'Something went wrong';
+  const { t } = useT();
+  const msg = (error as Error)?.message ?? t('Something went wrong');
   const code = (error as any)?.code;
   return (
     <div className="flex flex-col items-center justify-center px-6 py-12 text-center" role="alert">
       <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="h-5 w-5" /></div>
-      <p className="text-sm font-semibold text-navy-900">{code === 'FEATURE_NOT_IN_PLAN' ? 'Not included in your plan' : code === 'FORBIDDEN' ? 'Access denied' : 'Could not load this page'}</p>
+      <p className="text-sm font-semibold text-navy-900">{code === 'FEATURE_NOT_IN_PLAN' ? t('Not included in your plan') : code === 'FORBIDDEN' ? t('Access denied') : t('Could not load this page')}</p>
       <p className="mt-1 max-w-md text-sm text-slate-500">{msg}</p>
-      {code === 'FEATURE_NOT_IN_PLAN' ? <a href="/app/subscription" className="mt-4"><Button size="sm">View plans</Button></a>
-        : onRetry && <Button size="sm" variant="outline" className="mt-4" onClick={onRetry}>Try again</Button>}
+      {code === 'FEATURE_NOT_IN_PLAN' ? <a href="/app/subscription" className="mt-4"><Button size="sm">{t('View plans')}</Button></a>
+        : onRetry && <Button size="sm" variant="outline" className="mt-4" onClick={onRetry}>{t('Try again')}</Button>}
     </div>
   );
 }
@@ -174,7 +178,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
               <DialogPrimitive.Title className="text-base font-semibold text-navy-900">{title}</DialogPrimitive.Title>
               {description ? <DialogPrimitive.Description className="mt-1 text-sm text-slate-500">{description}</DialogPrimitive.Description> : <DialogPrimitive.Description className="sr-only">{String(title)}</DialogPrimitive.Description>}
             </div>
-            <DialogPrimitive.Close className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X className="h-4 w-4" /></DialogPrimitive.Close>
+            <DialogPrimitive.Close className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label={t('Close')}><X className="h-4 w-4" /></DialogPrimitive.Close>
           </div>
           <div className="overflow-y-auto px-5 py-4">{children}</div>
           {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">{footer}</div>}
@@ -196,9 +200,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     <ConfirmCtx.Provider value={confirm}>
       {children}
       <Dialog open={!!state} onOpenChange={(o) => !o && close(false)} title={state?.title ?? ''} description={state?.description} size="sm"
-        footer={<><Button variant="outline" onClick={() => close(false)}>Cancel</Button>
-          <Button variant={state?.danger ? 'danger' : 'primary'} disabled={state?.requireReason && reason.trim().length < 3} onClick={() => close({ reason: reason.trim() })}>{state?.confirmLabel ?? 'Confirm'}</Button></>}>
-        {state?.requireReason ? <Field label={state.reasonLabel ?? 'Reason'} required><Textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3} /></Field>
+        footer={<><Button variant="outline" onClick={() => close(false)}>{t('Cancel')}</Button>
+          <Button variant={state?.danger ? 'danger' : 'primary'} disabled={state?.requireReason && reason.trim().length < 3} onClick={() => close({ reason: reason.trim() })}>{state?.confirmLabel ?? t('Confirm')}</Button></>}>
+        {state?.requireReason ? <Field label={state.reasonLabel ?? t('Reason')} required><Textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3} /></Field>
           : <p className="text-sm text-slate-600">This action cannot be undone.</p>}
       </Dialog>
     </ConfirmCtx.Provider>
@@ -211,9 +215,9 @@ export function Tabs({ tabs, value, onValueChange, children, className }: { tabs
   return (
     <TabsPrimitive.Root value={value} onValueChange={onValueChange} className={className}>
       <TabsPrimitive.List className="-mb-px flex gap-1 overflow-x-auto border-b border-slate-200" aria-label="Sections">
-        {tabs.map((t) => (
-          <TabsPrimitive.Trigger key={t.value} value={t.value} className="whitespace-nowrap border-b-2 border-transparent px-3 pb-2.5 pt-1 text-sm font-medium text-slate-500 hover:text-slate-800 data-[state=active]:border-brand-600 data-[state=active]:text-brand-700">
-            {t.label}{t.count !== undefined && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{t.count}</span>}
+        {tabs.map((tab) => (
+          <TabsPrimitive.Trigger key={tab.value} value={tab.value} className="whitespace-nowrap border-b-2 border-transparent px-3 pb-2.5 pt-1 text-sm font-medium text-slate-500 hover:text-slate-800 data-[state=active]:border-brand-600 data-[state=active]:text-brand-700">
+            {tab.label}{tab.count !== undefined && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{tab.count}</span>}
           </TabsPrimitive.Trigger>
         ))}
       </TabsPrimitive.List>
@@ -282,7 +286,7 @@ export function DataTable<T extends { id?: string }>({ columns, rows, loading, e
           </tbody>
         </table>
       </div>
-      {!loading && rows && rows.length === 0 && (empty ?? <EmptyState title="Nothing here yet" />)}
+      {!loading && rows && rows.length === 0 && (empty ?? <EmptyState title={t('Nothing here yet')} />)}
       {meta && meta.totalPages > 1 && onPage && <Pagination meta={meta} onPage={onPage} />}
     </div>
   );
@@ -292,10 +296,10 @@ export function Pagination({ meta, onPage }: { meta: { page: number; totalPages:
   const from = (meta.page - 1) * meta.pageSize + 1, to = Math.min(meta.page * meta.pageSize, meta.total);
   return (
     <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
-      <span className="tabular">{from}–{to} of {meta.total}</span>
+      <span className="tabular">{t('{from}–{to} of {total}', { from, to, total: meta.total })}</span>
       <div className="flex gap-1">
-        <Button size="icon-sm" variant="outline" disabled={meta.page <= 1} onClick={() => onPage(meta.page - 1)} aria-label="Previous page"><ChevronLeft /></Button>
-        <Button size="icon-sm" variant="outline" disabled={meta.page >= meta.totalPages} onClick={() => onPage(meta.page + 1)} aria-label="Next page"><ChevronRight /></Button>
+        <Button size="icon-sm" variant="outline" disabled={meta.page <= 1} onClick={() => onPage(meta.page - 1)} aria-label={t('Previous page')}><ChevronLeft /></Button>
+        <Button size="icon-sm" variant="outline" disabled={meta.page >= meta.totalPages} onClick={() => onPage(meta.page + 1)} aria-label={t('Next page')}><ChevronRight /></Button>
       </div>
     </div>
   );
@@ -304,7 +308,7 @@ export function Pagination({ meta, onPage }: { meta: { page: number; totalPages:
 export function SearchInput({ value, onChange, placeholder = 'Search…', className }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
   const [v, setV] = React.useState(value);
   React.useEffect(() => setV(value), [value]);
-  React.useEffect(() => { const t = setTimeout(() => v !== value && onChange(v), 300); return () => clearTimeout(t); }, [v]); // eslint-disable-line
+  React.useEffect(() => { const timer = setTimeout(() => v !== value && onChange(v), 300); return () => clearTimeout(timer); }, [v]); // eslint-disable-line
   return (
     <div className={cn('relative', className)}>
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -315,7 +319,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
 
 // ---------------------------------------------------------------- Misc
 export function StatCard({ label, value, hint, icon: Icon, tone = 'blue', onClick }: { label: string; value: React.ReactNode; hint?: React.ReactNode; icon?: React.ElementType; tone?: 'blue' | 'green' | 'amber' | 'red' | 'navy' | 'violet'; onClick?: () => void }) {
-  const t = { blue: 'bg-brand-50 text-brand-600', green: 'bg-emerald-50 text-emerald-600', amber: 'bg-amber-50 text-amber-600', red: 'bg-red-50 text-red-600', navy: 'bg-navy-50 text-navy-800', violet: 'bg-violet-50 text-violet-600' }[tone];
+  const toneCls = { blue: 'bg-brand-50 text-brand-600', green: 'bg-emerald-50 text-emerald-600', amber: 'bg-amber-50 text-amber-600', red: 'bg-red-50 text-red-600', navy: 'bg-navy-50 text-navy-800', violet: 'bg-violet-50 text-violet-600' }[tone];
   return (
     <Card className={cn('p-4', onClick && 'cursor-pointer transition hover:border-brand-200 hover:shadow-pop')} onClick={onClick}>
       <div className="flex items-start justify-between gap-3">
@@ -324,7 +328,7 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'blue', onClic
           <p className="mt-1.5 truncate text-2xl font-semibold text-navy-900 tabular">{value}</p>
           {hint && <p className="mt-1 truncate text-xs text-slate-500">{hint}</p>}
         </div>
-        {Icon && <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', t)}><Icon className="h-[18px] w-[18px]" /></div>}
+        {Icon && <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneCls)}><Icon className="h-[18px] w-[18px]" /></div>}
       </div>
     </Card>
   );
@@ -345,9 +349,9 @@ export function DescriptionList({ items, cols = 2 }: { items: [React.ReactNode, 
 }
 
 export function Alert({ tone = 'blue', title, children, action }: { tone?: 'blue' | 'amber' | 'red' | 'green'; title?: React.ReactNode; children?: React.ReactNode; action?: React.ReactNode }) {
-  const t = { blue: 'border-brand-200 bg-brand-50 text-brand-900', amber: 'border-amber-200 bg-amber-50 text-amber-900', red: 'border-red-200 bg-red-50 text-red-900', green: 'border-emerald-200 bg-emerald-50 text-emerald-900' }[tone];
+  const toneCls = { blue: 'border-brand-200 bg-brand-50 text-brand-900', amber: 'border-amber-200 bg-amber-50 text-amber-900', red: 'border-red-200 bg-red-50 text-red-900', green: 'border-emerald-200 bg-emerald-50 text-emerald-900' }[tone];
   return (
-    <div className={cn('flex flex-wrap items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm', t)} role="status">
+    <div className={cn('flex flex-wrap items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm', toneCls)} role="status">
       <div>{title && <p className="font-semibold">{title}</p>}{children && <div className={cn(title && 'mt-0.5')}>{children}</div>}</div>
       {action}
     </div>

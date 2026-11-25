@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './lib/auth';
+import { I18nProvider } from './lib/i18n';
 import { ConfirmProvider } from './components/ui';
 import { App } from './App';
 import { ApiError } from './lib/api';
@@ -22,6 +23,7 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <I18nProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
@@ -32,5 +34,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
+    </I18nProvider>
   </React.StrictMode>,
 );
