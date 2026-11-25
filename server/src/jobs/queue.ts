@@ -2,6 +2,7 @@ import os from 'node:os';
 import type { Db } from '../db/pool.js';
 import { pool, systemDb } from '../db/pool.js';
 import { logger } from '../logger.js';
+import { captureError } from '../lib/monitoring.js';
 
 export interface EnqueueOpts { runAt?: Date; maxAttempts?: number; dedupeKey?: string; queue?: string }
 
@@ -53,6 +54,7 @@ export async function runDueJobs(batch = 10): Promise<number> {
       const dead = job.attempts >= job.max_attempts;
       const delaySec = Math.min(3600, 15 * 2 ** (job.attempts - 1));
       logger.warn({ jobId: job.id, type: job.job_type, attempt: job.attempts, err: msg }, dead ? 'job dead-lettered' : 'job failed, will retry');
+      if (dead) captureError(err, { jobId: job.id, jobType: job.job_type, tenantId: job.tenant_id, attempts: job.attempts });
       await systemDb.query(
         `UPDATE background_jobs SET status=$2, last_error=$3, run_at = now() + ($4 || ' seconds')::interval, locked_at=NULL WHERE id=$1`,
         [job.id, dead ? 'dead' : 'pending', msg, String(delaySec)]);

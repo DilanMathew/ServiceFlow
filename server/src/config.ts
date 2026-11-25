@@ -26,6 +26,7 @@ const schema = z.object({
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_FORCE_PATH_STYLE: bool.optional(),               // default: path-style when S3_ENDPOINT is set
   MAX_UPLOAD_MB: z.coerce.number().default(15),
   // Email (platform transactional: verification, password reset)
   EMAIL_DRIVER: z.enum(['console', 'smtp']).default('console'),
@@ -48,17 +49,22 @@ const schema = z.object({
   BILLING_WEBHOOK_SECRET: z.string().optional(),
   BILLING_GRACE_DAYS: z.coerce.number().default(7),
   // Error monitoring
-  SENTRY_DSN: z.string().optional(),
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_DSN_WEB: z.string().url().optional(),        // browser DSN (defaults to SENTRY_DSN)
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
+  RELEASE: z.string().optional(),
   SEED_DEMO: bool.default(false),
   PLATFORM_ADMIN_EMAIL: z.string().email().optional(),
   PLATFORM_ADMIN_PASSWORD: z.string().min(12).optional(),
 });
 
-const parsed = schema.safeParse(process.env);
+// Blank values (e.g. `SENTRY_DSN=` copied from .env.example) are treated as unset.
+const parsed = schema.safeParse(Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== '')));
 if (!parsed.success) {
   console.error('Invalid environment configuration:', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
-export const config = parsed.data;
+export const config = { ...parsed.data, RELEASE: parsed.data.RELEASE ?? process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) };
 export const isProd = config.NODE_ENV === 'production';
 export const isTest = config.NODE_ENV === 'test';

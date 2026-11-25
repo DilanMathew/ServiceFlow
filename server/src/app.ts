@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
+import { captureError } from './lib/monitoring.js';
 import { config, isProd } from './config.js';
 import { logger } from './logger.js';
 import { pool } from './db/pool.js';
@@ -21,6 +22,22 @@ import { portalRouter } from './modules/portal/routes.js';
 import { platformRouter } from './modules/platform/routes.js';
 import { webhookRouter } from './modules/payments/webhooks.js';
 import { storage } from './integrations/storage.js';
+
+/** Sentry ingest origin for the browser SDK, if configured (CSP connect-src). */
+function sentryOrigins() {
+  const dsn = config.SENTRY_DSN_WEB ?? config.SENTRY_DSN;
+  try { return dsn ? [new URL(dsn).origin] : []; } catch { return []; }
+}
+
+// Storage probe result is cached for a minute: the S3 check is a real write/read/delete round trip.
+let storageCache: { at: number; status: string } | null = null;
+async function storageStatus() {
+  if (storageCache && Date.now() - storageCache.at < 60_000) return storageCache.status;
+  let status = 'ok';
+  try { await storage.health(); } catch (err) { status = 'error'; logger.warn({ err }, 'storage health check failed'); }
+  storageCache = { at: Date.now(), status };
+  return status;
+}
 
 export function createApp() {
   const app = express();
@@ -41,7 +58,7 @@ export function createApp() {
       useDefaults: true,
       directives: {
         'img-src': ["'self'", 'data:', 'blob:'],
-        'connect-src': ["'self'"],
+        'connect-src': ["'self'", ...sentryOrigins()],
         'frame-ancestors': ["'none'"],
         'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
         'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -64,7 +81,7 @@ export function createApp() {
   app.get('/api/health/ready', async (_req, res) => {
     const checks: Record<string, string> = {};
     try { await pool.query('SELECT 1'); checks.database = 'ok'; } catch { checks.database = 'error'; }
-    try { await storage.health(); checks.storage = 'ok'; } catch { checks.storage = 'error'; }
+    checks.storage = await storageStatus();
     try {
       const r = await pool.query(`SELECT count(*) FILTER (WHERE status='dead' AND created_at > now() - interval '24 hours')::int dead,
         count(*) FILTER (WHERE status='pending' AND run_at < now() - interval '10 minutes')::int stuck FROM background_jobs`);
@@ -115,6 +132,7 @@ export function createApp() {
     if (pg?.code === '42501') return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Access denied', requestId: req.id } });
     if (pg?.code === '22P02') return res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid identifier format', requestId: req.id } });
     logger.error({ err, requestId: req.id }, 'unhandled error');
+    captureError(err, { requestId: String(req.id ?? ""), tenantId: req.auth?.tenantId, userId: req.auth?.userId, route: `${req.method} ${req.baseUrl}${req.route?.path ?? ''}` });
     res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong. Please try again.', requestId: req.id } });
   });
   return app;

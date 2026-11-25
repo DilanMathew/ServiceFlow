@@ -18,6 +18,17 @@ import { markSubscriptionInvoicePaid, markSubscriptionInvoiceFailed } from '../s
 
 export const publicRouter = Router();
 
+/** Runtime settings the SPA needs before login. Only public values: never secrets. */
+publicRouter.get('/client-config', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json({ data: {
+    environment: config.SENTRY_ENVIRONMENT ?? config.NODE_ENV,
+    release: config.RELEASE ?? null,
+    sentryDsn: config.SENTRY_DSN_WEB ?? config.SENTRY_DSN ?? null,
+    sentryTracesSampleRate: config.SENTRY_TRACES_SAMPLE_RATE,
+  } });
+});
+
 publicRouter.get('/plans', ah(async (_req, res) => {
   res.json({ data: await systemDb.many(`SELECT code, name, description, currency, monthly_price, annual_price, trial_days, max_users, max_technicians, max_storage_mb, max_branches,
     ai_requests_per_month, features FROM subscription_plans WHERE is_active AND is_public ORDER BY sort_order`) });

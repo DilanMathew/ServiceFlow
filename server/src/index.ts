@@ -8,6 +8,10 @@ import { startWorker, stopWorker } from './jobs/queue.js';
 import { registerJobHandlers } from './jobs/handlers.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 import { ensurePlatformAdmin } from './modules/platform/bootstrap.js';
+import { initMonitoring, captureError, flushMonitoring } from './lib/monitoring.js';
+import { storage } from './integrations/storage.js';
+
+initMonitoring();
 
 async function main() {
   const applied = await migrate();
@@ -18,6 +22,9 @@ async function main() {
     const { seedDemo } = await import('./seed/demo.js');
     await seedDemo({ skipIfExists: true });
   }
+  // Storage self-check: surfaces bad bucket credentials at boot instead of on the first upload.
+  try { await storage.health(); logger.info({ driver: config.STORAGE_DRIVER }, 'storage ok'); }
+  catch (err) { logger.error({ err, driver: config.STORAGE_DRIVER }, 'storage check failed: uploads will not work until this is fixed'); captureError(err, { source: 'storage_check' }); }
   registerJobHandlers();
   if (config.RUN_WORKER) { startWorker(); startScheduler(); }
 
@@ -25,12 +32,12 @@ async function main() {
   const shutdown = (sig: string) => {
     logger.info({ sig }, 'shutting down');
     stopWorker(); stopScheduler();
-    server.close(() => pool.end().then(() => process.exit(0)));
+    server.close(() => pool.end().then(() => flushMonitoring()).then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('unhandledRejection', (err) => logger.error({ err }, 'unhandled rejection'));
+  process.on('unhandledRejection', (err) => { logger.error({ err }, 'unhandled rejection'); captureError(err, { source: 'unhandledRejection' }); });
 }
 
-main().catch((err) => { logger.fatal({ err }, 'failed to start'); console.error(err); process.exit(1); });
+main().catch(async (err) => { logger.fatal({ err }, 'failed to start'); console.error(err); captureError(err, { source: 'startup' }); await flushMonitoring(); process.exit(1); });

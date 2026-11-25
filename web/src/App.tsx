@@ -1,4 +1,5 @@
 import { lazy, Suspense, Component, type ReactNode } from 'react';
+import { captureError } from './lib/monitoring';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { CalendarDays, ClipboardList, FileText, Headset, History, Home, Inbox, Receipt, User, Wrench, Building2, Gauge, CreditCard, Activity, Megaphone, ScrollText, Settings } from 'lucide-react';
 import { useAuth, homeFor } from './lib/auth';
@@ -44,6 +45,7 @@ const Platform = p(() => import('./pages/platform/Platform'));
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) { captureError(error, { componentStack: info.componentStack ?? undefined }); }
   render() {
     if (!this.state.error) return this.props.children;
     return (

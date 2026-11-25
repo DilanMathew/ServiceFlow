@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { setMonitoringUser } from './monitoring';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, post, refreshSession, setToken } from './api';
 import { configureFormat } from './format';
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const qc = useQueryClient();
+  useEffect(() => { setMonitoringUser(me ? { id: me.user.id, tenantId: me.tenant?.id ?? null, role: me.user.user_type } : null); }, [me]);
 
   const reload = useCallback(async () => {
     try {

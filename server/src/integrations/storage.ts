@@ -28,7 +28,7 @@ class LocalStorage implements Storage {
 
 class S3Storage implements Storage {
   client = new S3Client({
-    region: config.S3_REGION, endpoint: config.S3_ENDPOINT, forcePathStyle: !!config.S3_ENDPOINT,
+    region: config.S3_REGION, endpoint: config.S3_ENDPOINT, forcePathStyle: config.S3_FORCE_PATH_STYLE ?? !!config.S3_ENDPOINT,
     credentials: config.S3_ACCESS_KEY_ID ? { accessKeyId: config.S3_ACCESS_KEY_ID, secretAccessKey: config.S3_SECRET_ACCESS_KEY! } : undefined,
   });
   bucket = config.S3_BUCKET!;
@@ -37,7 +37,15 @@ class S3Storage implements Storage {
   }
   async get(key: string) { return (await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }))).Body as Readable; }
   async delete(key: string) { await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })); }
-  async health() { return true; }
+  /** Real round trip (write, read, delete a tiny probe object) so bad credentials or URL style fail loudly. */
+  async health() {
+    const key = `_health/${process.pid}-${Date.now()}.txt`;
+    await this.put(key, Buffer.from('ok'), 'text/plain');
+    const body = await this.get(key);
+    for await (const _ of body) { /* drain */ }
+    await this.delete(key);
+    return true;
+  }
 }
 
 export const storage: Storage = config.STORAGE_DRIVER === 's3' ? new S3Storage() : new LocalStorage();

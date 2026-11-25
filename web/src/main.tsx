@@ -7,7 +7,10 @@ import { AuthProvider } from './lib/auth';
 import { ConfirmProvider } from './components/ui';
 import { App } from './App';
 import { ApiError } from './lib/api';
+import { initMonitoring } from './lib/monitoring';
 import './index.css';
+
+void initMonitoring();
 
 const queryClient = new QueryClient({
   defaultOptions: {
