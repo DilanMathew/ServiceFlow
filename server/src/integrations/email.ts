@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import type { TenantIntegration } from './registry.js';
@@ -10,7 +10,7 @@ export interface SendResult { provider: string; messageId: string | null }
 /** Messages captured by the console driver (used by tests and local development). */
 export const outbox: EmailMessage[] = [];
 
-let platformTransport: nodemailer.Transporter | null = null;
+let platformTransport: Transporter | null = null;
 function platform() {
   if (!platformTransport && config.EMAIL_DRIVER === 'smtp') {
     platformTransport = nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465,

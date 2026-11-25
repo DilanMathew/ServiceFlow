@@ -20,7 +20,7 @@ export const requestSchema = z.object({
   description: z.string().trim().min(5).max(5000), priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   preferredDate: dateStr.nullish(), preferredTimeSlot: z.enum(['morning', 'afternoon', 'evening', 'any']).nullish(),
   source: z.enum(['admin', 'phone', 'email', 'whatsapp', 'portal', 'public_form', 'ai_assistant']).default('admin'),
-  aiAnalysis: z.record(z.unknown()).nullish(),
+  aiAnalysis: z.record(z.string(), z.unknown()).nullish(),
 });
 export type RequestInput = z.infer<typeof requestSchema>;
 

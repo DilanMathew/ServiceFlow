@@ -37,7 +37,7 @@ integrationsRouter.put('/:kind', requirePermission('integrations.manage'), ah(as
   if (['whatsapp', 'sms'].includes(kind)) await new Promise<void>((resolve, reject) => requireFeature('notifications')(req, res, (e?: unknown) => (e ? reject(e) : resolve())));
   if (kind === 'payment') await new Promise<void>((resolve, reject) => requireFeature('invoicing')(req, res, (e?: unknown) => (e ? reject(e) : resolve())));
   const b = parse(z.object({ provider: z.string(), mode: z.enum(['test', 'live']).default('test'), enabled: z.boolean().default(true),
-    config: z.record(z.union([z.string().max(500), z.number(), z.boolean()])).default({}), secrets: z.record(z.string().max(4000)).optional() }), req.body);
+    config: z.record(z.string(), z.union([z.string().max(500), z.number(), z.boolean()])).default({}), secrets: z.record(z.string(), z.string().max(4000)).optional() }), req.body);
   const def = PROVIDER_CATALOG[kind].find((p) => p.provider === b.provider);
   if (!def) throw badRequest('Unknown provider');
   const cfg = Object.fromEntries(Object.entries(b.config).filter(([k]) => def.config.includes(k)));

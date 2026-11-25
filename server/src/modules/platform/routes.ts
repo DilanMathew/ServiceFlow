@@ -99,7 +99,7 @@ platformRouter.patch('/tenants/:id/subscription', requirePermission('platform.bi
   const b = parse(z.object({ planCode: z.string().optional(), status: z.enum(['trialing', 'active', 'past_due', 'grace_period', 'cancelled', 'expired', 'suspended']).optional(),
     trialEndsAt: z.string().datetime({ offset: true }).optional(), currentPeriodEnd: z.string().datetime({ offset: true }).optional(), price: z.number().min(0).optional(),
     customLimits: z.object({ max_users: z.number().int().nullable().optional(), max_technicians: z.number().int().nullable().optional(), max_storage_mb: z.number().int().nullable().optional(),
-      max_branches: z.number().int().optional(), ai_requests_per_month: z.number().int().optional(), features: z.record(z.boolean()).optional() }).optional(),
+      max_branches: z.number().int().optional(), ai_requests_per_month: z.number().int().optional(), features: z.record(z.string(), z.boolean()).optional() }).optional(),
     reason: z.string().trim().min(3).max(500) }), req.body);
   await withSystem(async (db) => {
     const s = await db.maybeOne(`SELECT * FROM subscriptions WHERE tenant_id = $1 FOR UPDATE`, [req.params.id]);
@@ -134,7 +134,7 @@ platformRouter.post('/tenants/:id/support-session', requirePermission('platform.
 const planSchema = z.object({ code: z.string().regex(/^[a-z0-9_-]{2,30}$/), name: z.string().min(2).max(60), description: z.string().max(500).nullish(), currency: z.string().length(3).toUpperCase(),
   monthlyPrice: z.number().min(0), annualPrice: z.number().min(0), trialDays: z.number().int().min(0).max(365), maxUsers: z.number().int().min(1).nullable(),
   maxTechnicians: z.number().int().min(0).nullable(), maxStorageMb: z.number().int().min(1).nullable(), maxBranches: z.number().int().min(1), aiRequestsPerMonth: z.number().int().min(0),
-  features: z.record(z.boolean()), isPublic: z.boolean().default(true), isActive: z.boolean().default(true), sortOrder: z.number().int().default(10) });
+  features: z.record(z.string(), z.boolean()), isPublic: z.boolean().default(true), isActive: z.boolean().default(true), sortOrder: z.number().int().default(10) });
 const planCols: Record<string, string> = { code: 'code', name: 'name', description: 'description', currency: 'currency', monthlyPrice: 'monthly_price', annualPrice: 'annual_price',
   trialDays: 'trial_days', maxUsers: 'max_users', maxTechnicians: 'max_technicians', maxStorageMb: 'max_storage_mb', maxBranches: 'max_branches', aiRequestsPerMonth: 'ai_requests_per_month',
   features: 'features', isPublic: 'is_public', isActive: 'is_active', sortOrder: 'sort_order' };

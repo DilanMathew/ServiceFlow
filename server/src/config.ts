@@ -8,7 +8,7 @@ const schema = z.object({
   PORT: z.coerce.number().default(4000),
   APP_URL: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1),
-  DATABASE_SSL: bool.default('false'),
+  DATABASE_SSL: bool.default(false),
   REDIS_URL: z.string().optional(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, 'ENCRYPTION_KEY must be 32 bytes hex (64 chars)'),
@@ -17,7 +17,7 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default(''),
   TRUST_PROXY: z.coerce.number().default(1),
   LOG_LEVEL: z.string().default('info'),
-  RUN_WORKER: bool.default('true'),
+  RUN_WORKER: bool.default(true),
   // Storage
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./uploads'),
@@ -49,7 +49,7 @@ const schema = z.object({
   BILLING_GRACE_DAYS: z.coerce.number().default(7),
   // Error monitoring
   SENTRY_DSN: z.string().optional(),
-  SEED_DEMO: bool.default('false'),
+  SEED_DEMO: bool.default(false),
   PLATFORM_ADMIN_EMAIL: z.string().email().optional(),
   PLATFORM_ADMIN_PASSWORD: z.string().min(12).optional(),
 });

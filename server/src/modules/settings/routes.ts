@@ -63,7 +63,7 @@ const settingsSchema = z.object({
   invoiceFooter: z.string().max(2000).nullable(), quotationTerms: z.string().max(4000).nullable(), cancellationPolicy: z.string().max(4000).nullable(),
   cancellationNoticeHours: z.number().int().min(0).max(720), preventDoubleBooking: z.boolean(), inventoryEnabled: z.boolean(),
   technicianCanSeePrices: z.boolean(), locationTrackingEnabled: z.boolean(), publicRequestFormEnabled: z.boolean(),
-  notificationPreferences: z.record(z.object({ email: z.boolean().optional(), whatsapp: z.boolean().optional(), sms: z.boolean().optional() })),
+  notificationPreferences: z.record(z.string(), z.object({ email: z.boolean().optional(), whatsapp: z.boolean().optional(), sms: z.boolean().optional() })),
   documentRetentionDays: z.number().int().min(30).max(36500).nullable(), brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable(),
 }).partial();
 

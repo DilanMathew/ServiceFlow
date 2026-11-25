@@ -79,7 +79,7 @@ const registerSchema = z.object({
   country: z.string().length(2).toUpperCase().default('IN'),
   planCode: z.string().max(40).optional(),
   billingCycle: z.enum(['monthly', 'annual']).optional(),
-  acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms and privacy policy' }) }),
+  acceptTerms: z.literal(true, { error: 'You must accept the terms and privacy policy' }),
 });
 
 authRouter.post('/register', ah(async (req, res) => {
