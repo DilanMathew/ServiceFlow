@@ -17,6 +17,8 @@ import { enqueue } from '../../jobs/queue.js';
 
 export const authRouter = Router();
 const REFRESH_COOKIE = 'sf_rt';
+/** How long a just-rotated refresh token is still accepted (lost-response race), see /refresh. */
+const REFRESH_REUSE_GRACE_MS = 60_000;
 const MAX_FAILED = 8;
 
 const email = z.string().trim().toLowerCase().email().max(254);
@@ -203,7 +205,12 @@ authRouter.post('/refresh', ah(async (req, res) => {
       `SELECT s.*, u.user_type, u.is_active, u.tenant_id AS user_tenant FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.refresh_token_hash = $1 OR s.previous_token_hash = $1 FOR UPDATE OF s`, [h]);
     if (!s || s.revoked_at || new Date(s.expires_at) < new Date() || !s.is_active) throw unauthorized('Session expired');
-    if (s.previous_token_hash === h) {
+    const replayed = s.previous_token_hash === h;
+    // Grace window: a rotated-out token presented within seconds of its rotation means the browser never
+    // received the new cookie (page reloaded or connection dropped mid-refresh). Rotate again instead of
+    // logging the user out. Outside the window it is treated as theft.
+    const inGrace = replayed && s.rotated_at && Date.now() - new Date(s.rotated_at).getTime() < REFRESH_REUSE_GRACE_MS;
+    if (replayed && !inGrace) {
       // A rotated-out token was replayed: assume theft and kill the session (committed before we reject).
       await db.query(`UPDATE sessions SET revoked_at = now() WHERE id = $1`, [s.id]);
       await audit(db, req, { action: 'auth.refresh_reuse_detected', entityType: 'session', entityId: s.id }, { tenantId: s.tenant_id, userId: s.user_id, email: null });
@@ -211,7 +218,11 @@ authRouter.post('/refresh', ah(async (req, res) => {
       return null;
     }
     const next = randomToken(48);
-    await db.query(`UPDATE sessions SET previous_token_hash = refresh_token_hash, refresh_token_hash = $2, last_used_at = now() WHERE id = $1`, [s.id, sha256(next)]);
+    // During a grace replay the presented (older) token stays the "previous" one, so the grace window
+    // is not extended by repeated replays.
+    await db.query(`UPDATE sessions SET previous_token_hash = $3, refresh_token_hash = $2, last_used_at = now(),
+        rotated_at = CASE WHEN $4 THEN rotated_at ELSE now() END WHERE id = $1`,
+      [s.id, sha256(next), replayed ? h : s.refresh_token_hash, replayed]);
     const accessToken = signAccessToken({ sub: s.user_id, sid: s.id, tid: s.tenant_id, typ: s.support_access_grant_id ? 'support' : s.user_type });
     return { accessToken, next };
   });

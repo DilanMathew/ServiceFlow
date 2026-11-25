@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { setMonitoringUser } from './monitoring';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, post, refreshSession, setToken } from './api';
+import { api, lastRefreshWasOffline, post, refreshSession, setToken } from './api';
+import { lastProfile, rememberProfile, setOfflineUser, wipeOfflineData } from './offline/cache';
+import { flushOutbox, outboxState, refreshOutbox, startOutbox } from './offline/outbox';
 import { configureFormat } from './format';
 
 export interface Me {
@@ -17,6 +19,8 @@ export interface Me {
 
 interface AuthCtx {
   me: Me | null; loading: boolean;
+  /** Opened from the device cache because there was no connection; actions are queued until online. */
+  offlineSession: boolean;
   can: (...perms: string[]) => boolean;
   feature: (f: string) => boolean;
   reload: () => Promise<Me | null>;
@@ -28,36 +32,59 @@ const Ctx = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offlineSession, setOfflineSession] = useState(false);
   const qc = useQueryClient();
   useEffect(() => { setMonitoringUser(me ? { id: me.user.id, tenantId: me.tenant?.id ?? null, role: me.user.user_type } : null); }, [me]);
 
   const reload = useCallback(async () => {
     try {
       const r = await api<{ data: Me }>('/auth/me');
-      setMe(r.data);
-      if (r.data.settings) configureFormat({ currency: r.data.settings.currency, locale: r.data.settings.locale, timezone: r.data.settings.timezone });
+      applyMe(r.data);
+      setOfflineSession(false);
+      // Technicians may need to open the app without signal: keep their profile (never tokens) on the device.
+      if (r.data.technicianId) void rememberProfile(r.data);
+      void refreshOutbox().then(() => flushOutbox());
       return r.data;
-    } catch { setMe(null); return null; }
-  }, []);
+    } catch { setMe(null); setOfflineUser(null); return null; }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyMe(m: Me) {
+    setMe(m);
+    setOfflineUser(m.user.id);
+    if (m.settings) configureFormat({ currency: m.settings.currency, locale: m.settings.locale, timezone: m.settings.timezone });
+  }
 
   useEffect(() => {
+    startOutbox();
     (async () => {
       if (await refreshSession()) await reload();
+      else if (lastRefreshWasOffline()) {
+        const cached = await lastProfile<Me>();
+        if (cached?.technicianId) { applyMe(cached); setOfflineSession(true); void refreshOutbox(); }
+      }
       setLoading(false);
     })();
-  }, [reload]);
+    // When the connection returns during an offline session, restore the real session.
+    const back = async () => { if (await refreshSession()) await reload(); };
+    window.addEventListener('online', back);
+    return () => window.removeEventListener('online', back);
+  }, [reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const acceptToken = useCallback(async (token: string) => { setToken(token); qc.clear(); return reload(); }, [qc, reload]);
   const logout = useCallback(async () => {
+    const unsynced = outboxState().pending + outboxState().failed;
+    if (unsynced && !window.confirm(`${unsynced} job update(s) on this device have not been sent yet and will be lost if you sign out. Sign out anyway?`)) return;
     try { await post('/auth/logout'); } catch { /* ignore */ }
-    setToken(null); setMe(null); qc.clear();
-  }, [qc]);
+    await wipeOfflineData(me?.user.id ?? null);
+    setToken(null); setMe(null); setOfflineUser(null); setOfflineSession(false); qc.clear();
+    void refreshOutbox();
+  }, [qc, me]);
 
   const value = useMemo<AuthCtx>(() => ({
-    me, loading, reload, acceptToken, logout,
+    me, loading, offlineSession, reload, acceptToken, logout,
     can: (...perms) => !!me && perms.some((p) => me.permissions.includes(p)),
     feature: (f) => !!me?.entitlements?.features?.[f],
-  }), [me, loading, reload, acceptToken, logout]);
+  }), [me, loading, offlineSession, reload, acceptToken, logout]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

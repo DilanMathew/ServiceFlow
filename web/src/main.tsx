@@ -8,9 +8,11 @@ import { ConfirmProvider } from './components/ui';
 import { App } from './App';
 import { ApiError } from './lib/api';
 import { initMonitoring } from './lib/monitoring';
+import { registerServiceWorker } from './lib/pwa';
 import './index.css';
 
 void initMonitoring();
+void registerServiceWorker();
 
 const queryClient = new QueryClient({
   defaultOptions: {

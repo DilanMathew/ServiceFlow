@@ -12,6 +12,9 @@ export class ApiError extends Error {
 
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
+let refreshFailedOffline = false;
+/** True when the last session refresh failed because there was no connection (not because the session ended). */
+export const lastRefreshWasOffline = () => refreshFailedOffline;
 const listeners = new Set<(t: string | null) => void>();
 export const getToken = () => accessToken;
 export function setToken(t: string | null) { accessToken = t; listeners.forEach((l) => l(t)); }
@@ -20,8 +23,8 @@ export const onTokenChange = (fn: (t: string | null) => void) => { listeners.add
 export async function refreshSession(): Promise<boolean> {
   if (!refreshing) {
     refreshing = fetch('/api/auth/refresh', { method: 'POST', credentials: 'include', headers: { 'X-Requested-With': 'ServiceFlow' } })
-      .then(async (r) => { if (!r.ok) { setToken(null); return false; } setToken((await r.json()).data.accessToken); return true; })
-      .catch(() => false)
+      .then(async (r) => { refreshFailedOffline = false; if (!r.ok) { setToken(null); return false; } setToken((await r.json()).data.accessToken); return true; })
+      .catch(() => { refreshFailedOffline = true; return false; })
       .finally(() => { setTimeout(() => { refreshing = null; }, 0); });
   }
   return refreshing;

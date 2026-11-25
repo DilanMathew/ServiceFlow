@@ -112,7 +112,12 @@ export function createApp() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const webDist = [path.resolve(here, '../../web/dist'), path.resolve(here, '../../../web/dist')].find((p) => fs.existsSync(p));
   if (webDist) {
-    app.use(express.static(webDist, { index: false, maxAge: '1y', immutable: true, setHeaders: (res, p) => { if (p.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); } }));
+    // Hashed assets are immutable; the HTML shell, service worker and its manifests must always revalidate.
+    const fresh = /(\.html|[\\/]sw\.js|[\\/]precache\.json|\.webmanifest)$/;
+    app.use(express.static(webDist, { index: false, maxAge: '1y', immutable: true, setHeaders: (res, p) => {
+      if (fresh.test(p)) res.setHeader('Cache-Control', 'no-cache');
+      if (p.endsWith('sw.js')) res.setHeader('Service-Worker-Allowed', '/');
+    } }));
     app.get('*', (_req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(webDist, 'index.html')); });
   }
 

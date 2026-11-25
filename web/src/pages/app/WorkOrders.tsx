@@ -344,7 +344,9 @@ export function PartDialog({ part, setPart, onSave, hidePrice }: { part: any; se
   );
 }
 
-export function ReportEditor({ w, report, setReport, onSaved, compact }: { w: any; report: any; setReport: (r: any) => void; onSaved: () => void; compact?: boolean }) {
+export function ReportEditor({ w, report, setReport, onSaved, compact, saveReport }: { w: any; report: any; setReport: (r: any) => void; onSaved: () => void; compact?: boolean;
+  /** Override how the report is sent (the technician app queues it when offline). Returns true when queued. */
+  saveReport?: (body: Record<string, unknown>) => Promise<boolean> }) {
   const { feature, can } = useAuth();
   const [notes, setNotes] = useState(report.technician_notes ?? '');
   const [busy, setBusy] = useState(false);
@@ -352,9 +354,13 @@ export function ReportEditor({ w, report, setReport, onSaved, compact }: { w: an
   const f = (k: string) => ({ value: report[k] ?? '', disabled: locked, onChange: (e: any) => setReport({ ...report, [k]: e.target.value }) });
   const save = async () => {
     setBusy(true);
-    try { await put(`/app/work-orders/${w.id}/report`, { reportedIssue: report.reported_issue || null, findings: report.findings || null, workPerformed: report.work_performed || null,
-      recommendations: report.recommendations || null, followUpRequired: !!report.follow_up_required, followUpNotes: report.follow_up_notes || null, equipmentCondition: report.equipment_condition || null,
-      technicianNotes: notes || null, aiGenerated: !!report.ai_generated }); toast.success('Report saved'); onSaved(); }
+    try {
+      const body = { reportedIssue: report.reported_issue || null, findings: report.findings || null, workPerformed: report.work_performed || null,
+        recommendations: report.recommendations || null, followUpRequired: !!report.follow_up_required, followUpNotes: report.follow_up_notes || null, equipmentCondition: report.equipment_condition || null,
+        technicianNotes: notes || null, aiGenerated: !!report.ai_generated };
+      if (saveReport) { if (!(await saveReport(body))) toast.success('Report saved'); }
+      else { await put(`/app/work-orders/${w.id}/report`, body); toast.success('Report saved'); }
+      onSaved(); }
     catch (e) { toastError(e); } finally { setBusy(false); }
   };
   const ai = async () => {

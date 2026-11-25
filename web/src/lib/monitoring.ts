@@ -7,7 +7,7 @@ type SentryModule = typeof import('@sentry/react');
 let sentry: SentryModule | null = null;
 const pending: Array<[unknown, Record<string, unknown>]> = [];
 
-export interface ClientConfig { environment: string; release: string | null; sentryDsn: string | null; sentryTracesSampleRate: number }
+export interface ClientConfig { environment: string; release: string | null; sentryDsn: string | null; sentryTracesSampleRate: number; vapidPublicKey: string | null }
 let clientConfig: Promise<ClientConfig | null> | null = null;
 export function getClientConfig() {
   clientConfig ??= fetch('/api/public/client-config').then((r) => (r.ok ? r.json() : null)).then((j) => j?.data ?? null).catch(() => null);

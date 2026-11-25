@@ -9,6 +9,7 @@ import { dateTime } from '@/lib/format';
 import { titleCase } from '@/lib/utils';
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Field, Input, PageHeader } from '@/components/ui';
 import { toastError } from '@/components/form';
+import { PushCard } from '../tech/offline';
 
 export default function Profile() {
   const { me, reload } = useAuth();
@@ -28,6 +29,7 @@ export default function Profile() {
           <Field label="Phone"><Input value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} /></Field>
           <div className="sm:col-span-2"><Button onClick={() => patch('/auth/profile', { fullName: p.fullName, phone: p.phone || null }).then(() => { toast.success('Profile updated'); reload(); }).catch(toastError)}>Save</Button></div>
         </CardBody></Card>
+        {me?.user.user_type === 'staff' && !me.support && <PushCard />}
         <Card><CardHeader title="Change password" description="Other sessions are signed out after a change." /><CardBody className="grid gap-4 sm:grid-cols-2">
           <Field label="Current password"><Input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} /></Field>
           <Field label="New password" hint="At least 10 characters with letters and numbers"><Input type="password" autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} /></Field>

@@ -47,10 +47,27 @@ describe('authentication', () => {
     const r1 = await api().post('/api/auth/refresh').set('cookie', cookie).set('x-requested-with', 'ServiceFlow');
     expect(r1.status).toBe(200);
     const cookie2 = r1.headers['set-cookie'][0].split(';')[0];
+    // The old token is replayed well after its rotation (outside the lost-response grace window): theft.
+    await systemDb.query(`UPDATE sessions SET rotated_at = now() - interval '5 minutes' WHERE user_id = $1`, [t.owner.id]);
     const replay = await api().post('/api/auth/refresh').set('cookie', cookie).set('x-requested-with', 'ServiceFlow');
     expect(replay.status).toBe(401);
     const afterTheft = await api().post('/api/auth/refresh').set('cookie', cookie2).set('x-requested-with', 'ServiceFlow');
     expect(afterTheft.status).toBe(401); // whole session revoked
+  });
+
+  it('tolerates a lost refresh response (page reloaded mid-refresh) without logging the user out', async () => {
+    const t = await registerTenant();
+    const r = await api().post('/api/auth/login').send({ email: t.owner.email, password: PASSWORD });
+    const cookie = r.headers['set-cookie'][0].split(';')[0];
+    const r1 = await api().post('/api/auth/refresh').set('cookie', cookie).set('x-requested-with', 'ServiceFlow');
+    expect(r1.status).toBe(200); // browser never stored this response's cookie
+    const retry = await api().post('/api/auth/refresh').set('cookie', cookie).set('x-requested-with', 'ServiceFlow');
+    expect(retry.status).toBe(200);
+    const cookie3 = retry.headers['set-cookie'][0].split(';')[0];
+    expect((await api().post('/api/auth/refresh').set('cookie', cookie3).set('x-requested-with', 'ServiceFlow')).status).toBe(200);
+    // the grace window is not extended by repeated replays of the same old token
+    await systemDb.query(`UPDATE sessions SET rotated_at = now() - interval '5 minutes' WHERE user_id = $1`, [t.owner.id]);
+    expect((await api().post('/api/auth/refresh').set('cookie', cookie3).set('x-requested-with', 'ServiceFlow')).status).toBe(401);
   });
 
   it('logout revokes the session', async () => {
