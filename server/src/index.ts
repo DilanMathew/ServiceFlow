@@ -23,6 +23,10 @@ async function main() {
     const { seedDemo } = await import('./seed/demo.js');
     await seedDemo({ skipIfExists: true });
   }
+  if (config.SEED_SHOWCASE) {
+    const { seedShowcase } = await import('./seed/showcase.js');
+    try { await seedShowcase(); } catch (err) { logger.error({ err }, 'showcase seeding failed'); }
+  }
   // Storage self-check: surfaces bad bucket credentials at boot instead of on the first upload.
   try { await storage.health(); logger.info({ driver: config.STORAGE_DRIVER }, 'storage ok'); }
   catch (err) { logger.error({ err, driver: config.STORAGE_DRIVER }, 'storage check failed: uploads will not work until this is fixed'); captureError(err, { source: 'storage_check' }); }

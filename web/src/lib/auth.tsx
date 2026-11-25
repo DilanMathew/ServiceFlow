@@ -51,7 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function applyMe(m: Me) {
     setMe(m);
-    applyUserLanguage(m.user.locale, m.settings?.locale);
+    // The business language is a default only where every screen is translated (technician app, customer portal);
+    // office users keep their own choice or the browser language until the office screens are translated.
+    applyUserLanguage(m.user.locale, m.user.user_type === 'customer' || (m.technicianId && !m.permissions.includes('work_orders.read')) ? m.settings?.locale : null);
     setOfflineUser(m.user.id);
     if (m.settings) configureFormat({ currency: m.settings.currency, locale: m.settings.locale, timezone: m.settings.timezone });
   }

@@ -59,6 +59,7 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/).optional(),
   SEED_DEMO: bool.default(false),
+  SEED_SHOWCASE: bool.default(false),               // five sample companies with ~50 jobs each (see seed/showcase.ts)
   PLATFORM_ADMIN_EMAIL: z.string().email().optional(),
   PLATFORM_ADMIN_PASSWORD: z.string().min(12).optional(),
 });
