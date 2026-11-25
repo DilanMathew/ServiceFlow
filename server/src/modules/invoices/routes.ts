@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import QRCode from 'qrcode';
+import { enqueue } from '../../jobs/queue.js';
 import { z } from 'zod';
 import { requirePermission } from '../../auth/middleware.js';
 import { ah, dateStr, listQuery, orderBy, paged, parse, toCsv, Where } from '../../lib/http.js';
@@ -173,6 +175,8 @@ invoicesRouter.post('/:id/credit-notes', requirePermission('invoices.cancel'), a
       [db.tenantId, inv.id, await nextNumber(db, 'credit_note'), b.amount, b.reason, req.auth!.userId]);
     await recomputeInvoice(db, req, inv.id);
     await audit(db, req, { action: 'invoice.credit_note_issued', entityType: 'invoice', entityId: inv.id, after: { number: cn.number, amount: b.amount, reason: b.reason } });
+    const st = await db.one(`SELECT einvoice_auto FROM tenant_settings WHERE tenant_id = $1`, [db.tenantId]);
+    if (st.einvoice_auto) await enqueue(db, 'einvoice_auto', { invoiceId: inv.id, creditNoteId: cn.id }, { maxAttempts: 5, dedupeKey: `einvoice:${cn.id}` });
     return cn;
   });
   res.status(201).json({ data: out });
@@ -185,6 +189,11 @@ invoicesRouter.post('/:id/payment-link', requirePermission('payments.record', 'i
 export async function invoicePdf(db: Db, id: string) {
   const inv = await invoiceDetail(db, id);
   const s = await tenantSettings(db);
+  const e = await db.maybeOne(`SELECT irn, ack_no, ack_date, signed_qr, mode FROM einvoice_documents
+    WHERE invoice_id = $1 AND credit_note_id IS NULL AND scheme = 'IN_IRN' AND status = 'registered' ORDER BY created_at DESC LIMIT 1`, [id]);
+  const einvoice = e ? { irn: e.irn, ackNo: e.ack_no, test: e.mode === 'test',
+    ackDate: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: s.timezone }).format(new Date(e.ack_date)),
+    qrPng: await QRCode.toBuffer(e.signed_qr, { errorCorrectionLevel: 'M', margin: 1, width: 300 }) } : null;
   const seller = inv.status === 'draft'
     ? { name: s.legal_name || s.business_name, lines: [s.address_line1, [s.city, s.state, s.postal_code].filter(Boolean).join(' '), s.business_email, s.business_phone], taxLabel: s.tax_registration_label, taxId: s.tax_registration_number }
     : { name: inv.seller.name, lines: [inv.seller.address, inv.seller.email, inv.seller.phone], taxLabel: inv.seller.tax_label, taxId: inv.seller.tax_id };
@@ -199,7 +208,7 @@ export async function invoicePdf(db: Db, id: string) {
     totals: [['Subtotal', m(inv.subtotal)], ...(Number(inv.discount_total) > 0 ? [['Discount', `- ${m(inv.discount_total)}`] as [string, string]] : []), ['Tax', m(inv.tax_total)], ['Total', m(inv.total), true],
       ...(Number(inv.amount_paid) > 0 ? [['Paid', m(Number(inv.amount_paid) - Number(inv.amount_refunded))] as [string, string]] : []),
       ...(Number(inv.amount_credited) > 0 ? [['Credited', m(inv.amount_credited)] as [string, string]] : []), ['Balance due', m(inv.balance_due), true]],
-    taxBreakdown: inv.tax_breakdown, notes: inv.notes, footer: inv.footer ?? undefined,
+    taxBreakdown: inv.tax_breakdown, notes: inv.notes, footer: inv.footer ?? undefined, einvoice,
   }) };
 }
 

@@ -28,6 +28,9 @@ const customerSchema = z.object({
   notes: z.string().max(5000).nullish(), status: z.enum(['active', 'inactive']).default('active'), source: z.string().max(40).nullish(),
   branchId: z.string().uuid().nullish(), marketingOptIn: z.boolean().default(false),
   notificationOptOut: z.object({ email: z.boolean().optional(), whatsapp: z.boolean().optional(), sms: z.boolean().optional() }).default({}),
+  // E-invoicing: Peppol participant id ("scheme:identifier") and buyer reference (e.g. German Leitweg-ID)
+  peppolId: z.string().trim().toUpperCase().regex(/^[0-9A-Z]{2,4}:\S{1,200}$/, 'Use scheme:identifier, e.g. 0204:991-01234-56').nullish().or(z.literal('').transform(() => null)),
+  buyerReference: z.string().trim().max(100).nullish(),
   addresses: z.array(addressSchema).max(20).optional(),
   force: z.boolean().optional(), // bypass soft (name-based) duplicate warning
 });
@@ -37,6 +40,7 @@ const cols: Record<string, string> = {
   billingLine1: 'billing_line1', billingLine2: 'billing_line2', billingCity: 'billing_city', billingState: 'billing_state',
   billingPostalCode: 'billing_postal_code', billingCountry: 'billing_country', notes: 'notes', status: 'status', source: 'source',
   branchId: 'branch_id', marketingOptIn: 'marketing_opt_in', notificationOptOut: 'notification_opt_out',
+  peppolId: 'peppol_id', buyerReference: 'buyer_reference',
 };
 
 /** Exact (email/phone) matches block creation; similar names in the same postcode return a warning the user can override. */

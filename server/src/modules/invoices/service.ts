@@ -5,6 +5,7 @@ import { badRequest, notFound, unprocessable } from '../../lib/errors.js';
 import { calcLine, calcTotals } from '../../lib/money.js';
 import { nextNumber } from '../../lib/numbering.js';
 import { audit } from '../../lib/audit.js';
+import { enqueue } from '../../jobs/queue.js';
 import { notify } from '../notifications/service.js';
 import { tenantSettings, fmtMoney } from '../common.js';
 import { transition } from '../workorders/service.js';
@@ -99,10 +100,16 @@ export async function issueInvoice(db: Db, req: Request | null, id: string, opts
   const s = await tenantSettings(db);
   const c = await db.one(`SELECT c.*, a.line1, a.line2, a.city, a.state, a.postal_code, a.country FROM customers c
     LEFT JOIN customer_addresses a ON a.customer_id = c.id AND a.is_default AND a.deleted_at IS NULL WHERE c.id = $1`, [inv.customer_id]);
+  // Structured address parts are kept alongside the display string: e-invoices (IRN / UBL) need them.
+  const buyerParts = { line1: c.billing_line1 ?? c.line1 ?? null, line2: c.billing_line2 ?? c.line2 ?? null, city: c.billing_city ?? c.city ?? null,
+    state: c.billing_state ?? c.state ?? null, postal_code: c.billing_postal_code ?? c.postal_code ?? null, country: c.billing_country ?? c.country ?? s.country ?? null };
   const billTo = { name: c.company_name || c.full_name, contact: c.company_name ? c.full_name : null, email: c.email, phone: c.phone, tax_id: c.tax_id,
-    address: [c.billing_line1 ?? c.line1, c.billing_line2 ?? c.line2, c.billing_city ?? c.city, c.billing_state ?? c.state, c.billing_postal_code ?? c.postal_code].filter(Boolean).join(', ') };
-  const seller = { name: s.legal_name || s.business_name, address: [s.address_line1, s.address_line2, s.city, s.state, s.postal_code].filter(Boolean).join(', '),
-    email: s.business_email, phone: s.business_phone, tax_label: s.tax_registration_label, tax_id: s.tax_registration_number, country: s.country };
+    customer_type: c.customer_type, peppol_id: c.peppol_id ?? null, buyer_reference: c.buyer_reference ?? null, parts: buyerParts,
+    address: [buyerParts.line1, buyerParts.line2, buyerParts.city, buyerParts.state, buyerParts.postal_code].filter(Boolean).join(', ') };
+  const seller = { name: s.legal_name || s.business_name, trade_name: s.business_name, address: [s.address_line1, s.address_line2, s.city, s.state, s.postal_code].filter(Boolean).join(', '),
+    parts: { line1: s.address_line1 ?? null, line2: s.address_line2 ?? null, city: s.city ?? null, state: s.state ?? null, postal_code: s.postal_code ?? null, country: s.country ?? null },
+    email: s.business_email, phone: s.business_phone, tax_label: s.tax_registration_label, tax_id: s.tax_registration_number, country: s.country,
+    peppol_id: s.peppol_id ?? null, bank: s.bank_iban ? { name: s.bank_account_name ?? null, iban: s.bank_iban, bic: s.bank_bic ?? null } : null };
   const number = await nextNumber(db, 'invoice');
   const tz = s.timezone;
   const issued = await db.one(`UPDATE invoices SET status = 'issued', number = $2, issue_date = (now() AT TIME ZONE $3)::date,
@@ -115,6 +122,8 @@ export async function issueInvoice(db: Db, req: Request | null, id: string, opts
   }
   if (inv.quotation_id) await db.query(`UPDATE quotations SET status = 'converted' WHERE id = $1 AND status = 'approved'`, [inv.quotation_id]);
   await audit(db, req, { action: 'invoice.issued', entityType: 'invoice', entityId: id, after: { number, total: issued.total } });
+  // E-invoicing runs as a job after commit: a slow or failing IRP/Peppol provider never blocks issuing.
+  if (s.einvoice_auto) await enqueue(db, 'einvoice_auto', { invoiceId: id }, { maxAttempts: 5, dedupeKey: `einvoice:${id}` });
   if (opts.notify !== false) {
     await notify(db, { event: 'invoice.issued', customerId: inv.customer_id, entityType: 'invoice', entityId: id, dedupeKey: `invoice-issued:${id}`,
       vars: { invoice: { number, total: fmtMoney(issued.total, issued.currency, s.locale), due_date: issued.due_date }, links: { invoice: `${config.APP_URL}/i/${issued.public_token}` } } });

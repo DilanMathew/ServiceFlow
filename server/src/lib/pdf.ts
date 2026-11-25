@@ -22,6 +22,8 @@ export interface FinancialDoc {
   totals: [string, string, boolean?][];
   taxBreakdown?: { name: string; rate: number; amount: number }[];
   notes?: string | null; terms?: string | null; footer?: string | null;
+  /** India GST e-invoice details printed on the invoice (IRN, acknowledgement and signed QR code). */
+  einvoice?: { irn: string; ackNo: string; ackDate: string; qrPng: Buffer; test?: boolean } | null;
 }
 
 function finish(doc: PDFKit.PDFDocument): Promise<Buffer> {
@@ -94,6 +96,16 @@ export async function renderFinancialPdf(d: FinancialDoc): Promise<Buffer> {
     for (const t of d.taxBreakdown) { doc.text(`${t.name} @ ${t.rate}%`, 50, ty, { width: 140 }); doc.text(pdfMoney(t.amount, d.currency, d.locale), 190, ty, { width: 100, align: 'right' }); ty += 12; }
   }
   y += 16;
+  if (d.einvoice) {
+    if (y > 640) { doc.addPage(); y = 50; }
+    doc.roundedRect(50, y, 495, 104, 6).lineWidth(0.7).strokeColor('#cbd5e1').stroke();
+    doc.image(d.einvoice.qrPng, 58, y + 8, { width: 88, height: 88 });
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED).text(d.einvoice.test ? 'E-INVOICE (SANDBOX — NOT REGISTERED WITH IRP)' : 'E-INVOICE (GST)', 156, y + 12);
+    doc.font('Helvetica').fontSize(8).fillColor('#334155');
+    doc.text(`IRN: ${d.einvoice.irn}`, 156, y + 26, { width: 380 });
+    doc.text(`Ack No: ${d.einvoice.ackNo}    Ack Date: ${d.einvoice.ackDate}`, 156, doc.y + 4, { width: 380 });
+    y += 116;
+  }
   for (const [label, text] of [['Notes', d.notes], ['Terms & conditions', d.terms]] as const) {
     if (!text) continue;
     if (y > 700) { doc.addPage(); y = 50; }

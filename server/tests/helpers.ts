@@ -16,10 +16,10 @@ const uid = () => crypto.randomBytes(4).toString('hex');
 export interface TenantCtx { tenantId: string; slug: string; owner: { email: string; token: string; id: string } }
 
 /** Registers a business through the real API (owner gets a session). */
-export async function registerTenant(name = 'Biz', planCode = 'business'): Promise<TenantCtx> {
+export async function registerTenant(name = 'Biz', planCode = 'business', country = 'IN'): Promise<TenantCtx> {
   const slug = `t-${uid()}`;
   const email = `owner-${uid()}@example.com`;
-  const r = await api().post('/api/auth/register').send({ businessName: `${name} ${slug}`, workspace: slug, fullName: 'Owner Person', email, password: PASSWORD, country: 'IN', planCode, acceptTerms: true });
+  const r = await api().post('/api/auth/register').send({ businessName: `${name} ${slug}`, workspace: slug, fullName: 'Owner Person', email, password: PASSWORD, country, planCode, acceptTerms: true });
   if (r.status !== 201) throw new Error(`register failed: ${r.status} ${JSON.stringify(r.body)}`);
   const me = await api().get('/api/auth/me').set('authorization', `Bearer ${r.body.data.accessToken}`);
   return { tenantId: r.body.data.tenant.id, slug, owner: { email, token: r.body.data.accessToken, id: me.body.data.user.id } };

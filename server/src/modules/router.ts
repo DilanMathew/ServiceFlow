@@ -10,6 +10,7 @@ import { techniciansRouter } from './technicians/routes.js';
 import { dispatchRouter } from './dispatch/routes.js';
 import { quotationsRouter } from './quotations/routes.js';
 import { invoicesRouter } from './invoices/routes.js';
+import { einvoiceRouter } from './einvoice/routes.js';
 import { paymentsRouter } from './payments/routes.js';
 import { inventoryRouter } from './inventory/routes.js';
 import { amcRouter } from './amc/routes.js';
@@ -39,6 +40,7 @@ tenantRouter.use('/dispatch', requirePermission('dispatch.manage', 'work_orders.
 tenantRouter.use('/quotations', requireFeature('quotations'), quotationsRouter);
 tenantRouter.use('/invoices', requireFeature('invoicing'), invoicesRouter);
 tenantRouter.use('/payments', requireFeature('invoicing'), paymentsRouter);
+tenantRouter.use('/einvoice', requireFeature('invoicing'), einvoiceRouter);
 tenantRouter.use('/inventory', requireFeature('inventory'), inventoryRouter);
 tenantRouter.use('/amc', requireFeature('amc'), amcRouter);
 tenantRouter.use('/calendar', calendarRouter);

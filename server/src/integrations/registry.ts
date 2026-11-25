@@ -1,7 +1,7 @@
 import { systemDb } from '../db/pool.js';
 import { decrypt } from '../lib/crypto.js';
 
-export type IntegrationKind = 'email' | 'whatsapp' | 'sms' | 'payment' | 'maps' | 'ai' | 'storage';
+export type IntegrationKind = 'email' | 'whatsapp' | 'sms' | 'payment' | 'maps' | 'ai' | 'storage' | 'einvoice' | 'peppol';
 export interface TenantIntegration {
   kind: IntegrationKind; provider: string; mode: 'test' | 'live'; config: Record<string, any>;
   secrets: Record<string, string>; enabled: boolean;
@@ -43,4 +43,15 @@ export const PROVIDER_CATALOG: Record<IntegrationKind, { provider: string; label
   ],
   ai: [{ provider: 'platform', label: 'NEXUS AI (Claude)', config: [], secrets: [], docs: 'Uses the platform AI provider, subject to your plan quota.' }],
   storage: [{ provider: 'platform', label: 'NEXUS secure storage', config: [], secrets: [], docs: 'Private object storage managed by NEXUS.' }],
+  einvoice: [
+    { provider: 'in_sandbox', label: 'India e-invoice sandbox (no registration)', config: [], secrets: [],
+      docs: 'Generates IRNs with the official algorithm and a TEST QR code, without contacting the IRP. For trials and training only: not valid for GST compliance.' },
+    { provider: 'gsp', label: 'India e-invoice via your GSP', config: ['baseUrl', 'generatePath', 'cancelPath', 'gstin', 'clientId', 'username', 'apiKeyHeader'], secrets: ['apiKey', 'clientSecret', 'password'],
+      docs: 'Registers invoices with the IRP through your GST Suvidha Provider (GSP). Paths and headers vary by GSP — test against the GSP sandbox first.' },
+  ],
+  peppol: [
+    { provider: 'peppol_test', label: 'Peppol test (no transmission)', config: [], secrets: [], docs: 'Validates and records UBL documents as sent without transmitting them.' },
+    { provider: 'peppol_http', label: 'Peppol Access Point (REST)', config: ['endpointUrl'], secrets: ['apiKey'],
+      docs: 'POSTs Peppol BIS 3.0 / XRechnung UBL to your certified Access Point provider. Confirm the request format with your provider.' },
+  ],
 };

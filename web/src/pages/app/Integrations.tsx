@@ -3,19 +3,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleAlert, Copy, Plug } from 'lucide-react';
 import { toast } from 'sonner';
 import { post, put } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { useData } from '@/lib/hooks';
 import { dateTime } from '@/lib/format';
 import { titleCase } from '@/lib/utils';
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Checkbox, Dialog, ErrorState, Field, Input, PageHeader, PageLoader, Select, StatusBadge } from '@/components/ui';
 import { toastError } from '@/components/form';
 
-const LABEL: Record<string, string> = { email: 'Email', whatsapp: 'WhatsApp Business', sms: 'SMS', payment: 'Payment gateway', maps: 'Maps & geocoding', ai: 'AI assistant', storage: 'File storage' };
+const LABEL: Record<string, string> = { email: 'Email', whatsapp: 'WhatsApp Business', sms: 'SMS', payment: 'Payment gateway', maps: 'Maps & geocoding', ai: 'AI assistant', storage: 'File storage', einvoice: 'E-invoicing (India IRN)', peppol: 'Peppol e-invoicing (EU)' };
 
 export default function Integrations() {
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useData<any[]>(['integrations'], '/app/integrations');
   const [edit, setEdit] = useState<any>(null);
   const [test, setTest] = useState<any>(null);
+  const { me } = useAuth();
+  const india = me?.tenant?.country === 'IN';
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   const save = () => put(`/app/integrations/${edit.kind}`, { provider: edit.provider, mode: edit.mode, enabled: edit.enabled, config: edit.config, secrets: edit.secrets })
@@ -24,7 +27,7 @@ export default function Integrations() {
     <div>
       <PageHeader title="Integrations" description="Connect your own providers. Secrets are encrypted at rest and never shown again after saving. Every integration has a test mode." />
       <div className="grid gap-4 md:grid-cols-2">
-        {data!.map((i) => (
+        {data!.filter((i) => (i.kind === 'einvoice' ? india : i.kind === 'peppol' ? !india : true)).map((i) => (
           <Card key={i.kind}><CardHeader title={LABEL[i.kind] ?? titleCase(i.kind)} description={i.current ? i.providers.find((p: any) => p.provider === i.current.provider)?.label : 'Not configured'}
             actions={i.current && <div className="flex gap-1">{i.current.mode === 'test' && <Badge tone="amber">Test mode</Badge>}<StatusBadge status={i.current.enabled ? i.current.status : 'inactive'} label={i.current.enabled ? undefined : 'Disabled'} /></div>} />
             <CardBody className="space-y-3 text-sm">

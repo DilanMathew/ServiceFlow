@@ -11,6 +11,7 @@ import { titleCase } from '@/lib/utils';
 import { Alert, Button, Card, CardBody, CardHeader, Checkbox, DataTable, Dialog, EmptyState, ErrorState, Field, Input, PageHeader, PageLoader, SearchInput, Select, StatCard, StatusBadge, Textarea, useConfirm } from '@/components/ui';
 import { toastError } from '@/components/form';
 import { BackLink, CustomerPicker, ItemsTable, LineItemsEditor, TotalsBlock, type Line } from './shared';
+import { EInvoicePanel } from './EInvoicePanel';
 
 export function RecordPaymentDialog({ invoice, open, onOpenChange, onDone }: { invoice: any; open: boolean; onOpenChange: (o: boolean) => void; onDone: () => void }) {
   const [v, setV] = useState({ amount: '', method: 'upi', reference: '', receivedAt: '', status: 'succeeded', notes: '' });
@@ -163,6 +164,7 @@ function InvoiceDetail() {
             {Number(i.balance_due) > 0 && <Button variant="outline" className="w-full" onClick={() => setCredit({ amount: '', reason: '' })}>Issue credit note</Button>}
             <Button variant="danger-outline" className="w-full" onClick={async () => { const r = await confirm({ title: 'Cancel invoice?', description: 'The invoice keeps its number and is marked cancelled. Payments must be refunded first.', requireReason: true, danger: true, confirmLabel: 'Cancel invoice' }); if (r) act.mutate(() => post(`/app/invoices/${i.id}/cancel`, { reason: r.reason })); }}><Ban />Cancel invoice</Button>
           </CardBody></Card>}
+          {i.status !== 'draft' && <EInvoicePanel invoice={i} />}
           {i.seller?.name && <Card><CardHeader title="Billed to" /><CardBody className="text-sm"><p className="font-medium">{i.bill_to.name}</p><p className="text-slate-600">{i.bill_to.address}</p>{i.bill_to.tax_id && <p className="text-xs text-slate-500">Tax ID {i.bill_to.tax_id}</p>}</CardBody></Card>}
         </div>
       </div>

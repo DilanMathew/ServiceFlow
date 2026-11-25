@@ -4,6 +4,9 @@ import { sendEmail, simpleHtml } from '../integrations/email.js';
 import { sendSms, sendWhatsApp } from '../integrations/messaging.js';
 import { getIntegration, markIntegrationHealth } from '../integrations/registry.js';
 import { sendPush } from '../integrations/push.js';
+import { autoEinvoice } from '../modules/einvoice/service.js';
+import { AppError } from '../lib/errors.js';
+import { notifyStaff, staffWithPermission } from '../modules/notifications/service.js';
 
 export function registerJobHandlers() {
   registerHandler('send_system_email', async (job) => {
@@ -74,6 +77,29 @@ export function registerJobHandlers() {
       job.payload.done = done;
       await systemDb.query(`UPDATE background_jobs SET payload = $2 WHERE id = $1`, [job.id, job.payload]);
       throw new Error(`push failed for ${transient} device(s)`);
+    }
+  });
+
+  // Automatic e-invoicing after an invoice / credit note is issued. Data problems are reported to the
+  // billing team in-app (no retry); provider outages retry with backoff.
+  registerHandler('einvoice_auto', async (job) => {
+    const tenantId = job.tenant_id!;
+    const { invoiceId, creditNoteId } = job.payload;
+    try {
+      await autoEinvoice(tenantId, invoiceId, creditNoteId ?? null);
+    } catch (e) {
+      const dataProblem = e instanceof AppError && e.status < 500;
+      const lastTry = job.attempts >= 5;
+      if (dataProblem || lastTry) {
+        await withTenant(tenantId, async (db) => {
+          const inv = await db.one(`SELECT number FROM invoices WHERE id = $1`, [invoiceId]);
+          for (const uid of await staffWithPermission(db, 'invoices.manage')) {
+            await notifyStaff(db, uid, 'einvoice.failed', { title: `E-invoice needs attention: ${inv.number}`, body: (e as Error).message.slice(0, 200), link: `/app/invoices/${invoiceId}` });
+          }
+        });
+        if (dataProblem) return;
+      }
+      throw e;
     }
   });
 }

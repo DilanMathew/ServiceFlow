@@ -185,6 +185,12 @@ export default function Settings() {
                 paymentTermsDays: st.payment_terms_days, quotationValidityDays: st.quotation_validity_days, invoiceNumberPrefix: st.invoice_number_prefix, quotationNumberPrefix: st.quotation_number_prefix, jobNumberPrefix: st.job_number_prefix,
                 requestNumberPrefix: st.request_number_prefix, invoiceFooter: st.invoice_footer ?? '', quotationTerms: st.quotation_terms ?? '' }}
               onSubmit={(v) => saveSettings({ ...v, currency: v.currency?.toUpperCase() })} /></CardBody></Card>
+          <Card><CardHeader title="E-invoicing" description={st.country === 'IN' ? 'GST e-invoices (IRN) for B2B invoices. Connect a provider under Integrations.' : 'EN 16931 e-invoices (Peppol BIS 3.0 / XRechnung). Connect an access point under Integrations.'} /><CardBody>
+            <SaveForm fields={[{ name: 'einvoiceAuto', label: st.country === 'IN' ? 'Register B2B invoices with the IRP automatically when issued' : 'Send e-invoices automatically to customers with a Peppol ID', type: 'checkbox', span: 2 },
+              ...(st.country === 'IN' ? [] : [{ name: 'peppolId', label: 'Your Peppol ID', placeholder: '0088:5790000435968', hint: 'scheme:identifier (e.g. 9930:DE123456789)' },
+                { name: 'bankAccountName', label: 'Account holder' }, { name: 'bankIban', label: 'IBAN' }, { name: 'bankBic', label: 'BIC' }])]}
+              defaults={{ einvoiceAuto: st.einvoice_auto ?? false, peppolId: st.peppol_id ?? '', bankAccountName: st.bank_account_name ?? '', bankIban: st.bank_iban ?? '', bankBic: st.bank_bic ?? '' }}
+              onSubmit={(v) => saveSettings(st.country === 'IN' ? { einvoiceAuto: v.einvoiceAuto } : { einvoiceAuto: v.einvoiceAuto, peppolId: v.peppolId || null, bankAccountName: v.bankAccountName || null, bankIban: v.bankIban || null, bankBic: v.bankBic || null })} /></CardBody></Card>
           <SimpleList title="Tax rates" description="Use components for split taxes, e.g. CGST 9% + SGST 9%." path="tax-rates" rows={s.taxRates}
             columns={[{ key: 'n', header: 'Name', cell: (r: any) => <span>{r.name} {r.is_default && <Badge tone="blue">Default</Badge>} {!r.is_active && <Badge>Inactive</Badge>}</span> }, { key: 'r', header: 'Rate', cell: (r: any) => `${Number(r.rate)}%` },
               { key: 'c', header: 'Components', cell: (r: any) => (r.components ?? []).map((c: any) => `${c.name} ${c.rate}%`).join(' + ') || '—' }]}

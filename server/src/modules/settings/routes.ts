@@ -65,6 +65,11 @@ const settingsSchema = z.object({
   technicianCanSeePrices: z.boolean(), locationTrackingEnabled: z.boolean(), publicRequestFormEnabled: z.boolean(),
   notificationPreferences: z.record(z.string(), z.object({ email: z.boolean().optional(), whatsapp: z.boolean().optional(), sms: z.boolean().optional() })),
   documentRetentionDays: z.number().int().min(30).max(36500).nullable(), brandColor: z.string().regex(/^#[0-9a-f]{6}$/i).nullable(),
+  // E-invoicing
+  einvoiceAuto: z.boolean(), peppolId: z.string().trim().toUpperCase().regex(/^[0-9A-Z]{2,4}:\S{1,200}$/, 'Use scheme:identifier, e.g. 0088:5790000435968').nullable(),
+  bankAccountName: z.string().trim().max(140).nullable(), bankIban: z.string().trim().toUpperCase().transform((v) => v.replace(/\s/g, ''))
+    .refine((v) => /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v), 'Enter a valid IBAN').nullable(),
+  bankBic: z.string().trim().toUpperCase().regex(/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/, 'Enter a valid BIC').nullable(),
 }).partial();
 
 const colMap: Record<string, string> = {
@@ -78,6 +83,7 @@ const colMap: Record<string, string> = {
   inventoryEnabled: 'inventory_enabled', technicianCanSeePrices: 'technician_can_see_prices', locationTrackingEnabled: 'location_tracking_enabled',
   publicRequestFormEnabled: 'public_request_form_enabled', notificationPreferences: 'notification_preferences',
   documentRetentionDays: 'document_retention_days', brandColor: 'brand_color',
+  einvoiceAuto: 'einvoice_auto', peppolId: 'peppol_id', bankAccountName: 'bank_account_name', bankIban: 'bank_iban', bankBic: 'bank_bic',
 };
 
 settingsRouter.patch('/', manage, ah(async (req, res) => {

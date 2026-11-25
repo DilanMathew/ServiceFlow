@@ -18,6 +18,8 @@ export const customerFields: FieldDef[] = [
   { name: 'companyName', label: 'Company name' }, { name: 'email', label: 'Email', type: 'email' },
   { name: 'phone', label: 'Phone', type: 'tel' }, { name: 'altPhone', label: 'Alternate phone', type: 'tel' },
   { name: 'taxId', label: 'Tax ID (GSTIN / VAT)' }, { name: 'source', label: 'Source', placeholder: 'referral, google…' },
+  { name: 'peppolId', label: 'Peppol ID (e-invoicing)', placeholder: '0204:991-01234-56', hint: 'Business buyers that receive e-invoices: scheme:identifier' },
+  { name: 'buyerReference', label: 'Buyer reference', placeholder: 'Leitweg-ID / PO reference', hint: 'Required by German public-sector buyers (XRechnung)' },
   { name: 'notes', label: 'Notes', type: 'textarea' },
 ];
 const addressFields: FieldDef[] = [
@@ -213,7 +215,7 @@ function CustomerDetail() {
         {tab === 'documents' && <DocumentsPanel entityType="customer" entityId={c.id} onChange={refresh} />}
       </div>
       <FormDialog open={editing} onOpenChange={setEditing} title="Edit customer" size="lg" fields={customerFields}
-        defaultValues={{ fullName: c.full_name, customerType: c.customer_type, companyName: c.company_name ?? '', email: c.email ?? '', phone: c.phone ?? '', altPhone: c.alt_phone ?? '', taxId: c.tax_id ?? '', source: c.source ?? '', notes: c.notes ?? '' }}
+        defaultValues={{ fullName: c.full_name, customerType: c.customer_type, companyName: c.company_name ?? '', email: c.email ?? '', phone: c.phone ?? '', altPhone: c.alt_phone ?? '', taxId: c.tax_id ?? '', source: c.source ?? '', peppolId: c.peppol_id ?? '', buyerReference: c.buyer_reference ?? '', notes: c.notes ?? '' }}
         onSubmit={async (v) => { await patch(`/app/customers/${c.id}`, v); refresh(); }} successMessage="Customer updated" />
       <FormDialog open={!!addr} onOpenChange={(o) => !o && setAddr(null)} title={addr?.id ? 'Edit address' : 'Add address'} fields={addressFields}
         defaultValues={addr?.id ? { label: addr.label, line1: addr.line1, line2: addr.line2 ?? '', city: addr.city ?? '', state: addr.state ?? '', postalCode: addr.postal_code ?? '', accessNotes: addr.access_notes ?? '', isDefault: addr.is_default } : { label: 'Primary', isDefault: c.addresses.length === 0 }}
